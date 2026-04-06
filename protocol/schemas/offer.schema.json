@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://handoff.dev/schemas/offer.schema.json",
+  "title": "Offer / Counteroffer",
+  "description": "An offer or counteroffer within a negotiation session.",
+  "type": "object",
+  "required": ["offer"],
+  "properties": {
+    "offer": {
+      "type": "object",
+      "required": ["id", "negotiation_id", "from_agent", "round", "terms"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique offer identifier"
+        },
+        "negotiation_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Parent negotiation session"
+        },
+        "from_agent": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Agent submitting this offer"
+        },
+        "round": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Negotiation round number"
+        },
+        "terms": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "The proposed terms — structure is domain-specific"
+        },
+        "concessions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Human-readable list of concessions made in this offer"
+        },
+        "conditions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Conditions that must be met for this offer to hold"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this offer expires"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

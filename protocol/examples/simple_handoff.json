@@ -1,0 +1,85 @@
+{
+  "description": "Simple two-agent handoff: travel agent delegates hotel booking to hotel agent",
+  "steps": [
+    {
+      "step": 1,
+      "action": "register",
+      "agent": "travel-agent",
+      "message": {
+        "name": "travel-bot",
+        "owner_id": "org-acme",
+        "capabilities": [
+          {
+            "domain": "travel",
+            "actions": ["search_flights", "search_hotels", "plan_itinerary"],
+            "constraints": { "max_spend_per_transaction": 5000, "currency": "USD" }
+          }
+        ]
+      }
+    },
+    {
+      "step": 2,
+      "action": "register",
+      "agent": "hotel-agent",
+      "message": {
+        "name": "hotel-booking-service",
+        "owner_id": "org-hilton",
+        "capabilities": [
+          {
+            "domain": "hotels",
+            "actions": ["search_availability", "book_room", "cancel_booking"],
+            "constraints": { "regions": ["asia", "europe", "north-america"] }
+          }
+        ]
+      }
+    },
+    {
+      "step": 3,
+      "action": "discover",
+      "agent": "travel-agent",
+      "query": { "domain": "hotels", "action": "book_room", "min_trust": 0.5 },
+      "result": ["hotel-agent"]
+    },
+    {
+      "step": 4,
+      "action": "handoff",
+      "from": "travel-agent",
+      "to": "hotel-agent",
+      "context": {
+        "task_description": "Book a hotel room in Tokyo",
+        "agreed_terms": {
+          "hotel": "Park Hyatt Tokyo",
+          "room_type": "deluxe_king",
+          "check_in": "2025-03-15",
+          "check_out": "2025-03-20",
+          "total_price": 2100,
+          "currency": "USD"
+        },
+        "input_data": {
+          "guest_name": "Jane Smith",
+          "guest_email": "jane@example.com"
+        },
+        "constraints": {
+          "timeout_minutes": 30,
+          "rollback_on_failure": true
+        }
+      }
+    },
+    {
+      "step": 5,
+      "action": "handoff_result",
+      "from": "hotel-agent",
+      "to": "travel-agent",
+      "result": {
+        "status": "completed",
+        "confirmation_number": "PH-TYO-2025-78432",
+        "details": {
+          "hotel": "Park Hyatt Tokyo",
+          "room": "Deluxe King, Floor 42",
+          "check_in": "2025-03-15T15:00:00+09:00",
+          "check_out": "2025-03-20T11:00:00+09:00"
+        }
+      }
+    }
+  ]
+}

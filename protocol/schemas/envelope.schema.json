@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://handoff.dev/schemas/envelope.schema.json",
+  "title": "Signed Message Envelope",
+  "description": "Cryptographically signed wrapper for all agent-to-agent messages.",
+  "type": "object",
+  "required": ["envelope", "payload"],
+  "properties": {
+    "envelope": {
+      "type": "object",
+      "required": ["version", "message_id", "timestamp", "sender", "payload_hash", "signature"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1.0",
+          "description": "Protocol version"
+        },
+        "message_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique message identifier"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of message creation"
+        },
+        "sender": {
+          "type": "object",
+          "required": ["agent_id", "public_key_fingerprint"],
+          "properties": {
+            "agent_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "public_key_fingerprint": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]+$",
+              "description": "SHA-256 fingerprint of the sender's public key"
+            }
+          },
+          "additionalProperties": false
+        },
+        "recipient": {
+          "type": "object",
+          "properties": {
+            "agent_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "additionalProperties": false
+        },
+        "payload_hash": {
+          "type": "string",
+          "pattern": "^sha256:.+$",
+          "description": "SHA-256 hash of the canonical payload for integrity verification"
+        },
+        "signature": {
+          "type": "string",
+          "description": "Base64-encoded Ed25519 signature of the canonical envelope"
+        }
+      },
+      "additionalProperties": false
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "The actual message content (intent, offer, handoff, etc.)"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://handoff.dev/schemas/intent.schema.json",
+  "title": "Intent",
+  "description": "A structured expression of what an agent needs — the starting point of any negotiation.",
+  "type": "object",
+  "required": ["intent"],
+  "properties": {
+    "intent": {
+      "type": "object",
+      "required": ["id", "type", "domain", "action", "parameters"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique intent identifier"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["request", "offer", "inform", "query"],
+          "description": "Intent type"
+        },
+        "domain": {
+          "type": "string",
+          "description": "Domain of the requested action"
+        },
+        "action": {
+          "type": "string",
+          "description": "Specific action being requested"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Action-specific parameters",
+          "properties": {
+            "preferences": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Optional soft preferences"
+            }
+          }
+        },
+        "constraints": {
+          "type": "object",
+          "description": "Hard and soft constraints on the action",
+          "properties": {
+            "budget_max": { "type": "number", "minimum": 0 },
+            "currency": { "type": "string" },
+            "deadline": { "type": "string", "format": "date-time" },
+            "must_have": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Non-negotiable requirements"
+            },
+            "nice_to_have": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Desired but negotiable requirements"
+            }
+          },
+          "additionalProperties": true
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"],
+          "default": "medium"
+        },
+        "fallback_behavior": {
+          "type": "string",
+          "enum": ["notify_owner", "retry", "escalate", "abort"],
+          "default": "notify_owner",
+          "description": "What to do if negotiation fails"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
