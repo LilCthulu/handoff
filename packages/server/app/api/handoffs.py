@@ -28,6 +28,7 @@ from app.schemas.handoff import (
     HandoffStatusUpdate,
 )
 from app.api.deps import get_current_agent, get_agent_id
+from app.services.contract_enforcement import validate_handoff_input, validate_handoff_result
 
 logger = structlog.get_logger()
 
@@ -63,6 +64,18 @@ async def create_handoff(
             neg_dict = begin_execution(neg_dict)
             negotiation.state = neg_dict["state"]
             negotiation.updated_at = neg_dict["updated_at"]
+
+    # Validate input against receiving agent's capability contract
+    contract, violations = await validate_handoff_input(db, req.to_agent_id, req.context)
+    if violations:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Handoff input violates capability contract",
+                "contract_id": str(contract.id) if contract else None,
+                "violations": violations,
+            },
+        )
 
     # Generate chain_id if this is the first in a chain
     chain_id = req.chain_id or uuid.uuid4()
@@ -150,6 +163,9 @@ async def update_handoff_status(
     if req.status in ("completed", "failed", "rolled_back"):
         handoff.completed_at = datetime.now(timezone.utc)
 
+        # Record trust event
+        await _record_handoff_trust(db, handoff, req.status)
+
         # Update linked negotiation
         if handoff.negotiation_id:
             result = await db.execute(
@@ -200,17 +216,39 @@ async def submit_handoff_result(
     if caller_id != handoff.to_agent_id:
         raise HTTPException(status_code=403, detail="Only the receiving agent can submit results")
 
+    # Validate result against capability contract output schema
+    contract, violations, sla_report = await validate_handoff_result(db, handoff, req.result)
+    if violations:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Handoff result violates capability contract output schema",
+                "contract_id": str(contract.id) if contract else None,
+                "violations": violations,
+            },
+        )
+
     handoff.result = req.result
     handoff.status = "completed"
     handoff.updated_at = datetime.now(timezone.utc)
     handoff.completed_at = datetime.now(timezone.utc)
+
+    # Record trust event (with SLA context)
+    await _record_handoff_trust(db, handoff, "completed")
+
+    audit_details: dict[str, Any] = {"result_keys": list(req.result.keys())}
+    if sla_report:
+        audit_details["sla_report"] = sla_report
+    if contract:
+        audit_details["contract_id"] = str(contract.id)
+        audit_details["contract_version"] = contract.version
 
     audit = AuditLog(
         entity_type="handoff",
         entity_id=handoff.id,
         action="result_submitted",
         actor_agent_id=caller_id,
-        details={"result_keys": list(req.result.keys())},
+        details=audit_details,
     )
     db.add(audit)
     await db.commit()
@@ -310,6 +348,43 @@ async def _get_handoff_or_404(db: AsyncSession, handoff_id: uuid.UUID) -> Handof
     if not handoff:
         raise HTTPException(status_code=404, detail="Handoff not found")
     return handoff
+
+
+async def _record_handoff_trust(db: AsyncSession, handoff: Handoff, status: str) -> None:
+    """Record a trust event for the receiving agent based on handoff outcome."""
+    from app.services.trust import record_trust_event
+
+    # Determine the domain from the handoff context or linked negotiation
+    domain = "general"
+    context = handoff.context or {}
+    if "domain" in context:
+        domain = context["domain"]
+    elif handoff.negotiation_id:
+        result = await db.execute(
+            select(Negotiation).where(Negotiation.id == handoff.negotiation_id)
+        )
+        neg = result.scalar_one_or_none()
+        if neg and isinstance(neg.intent, dict):
+            domain = neg.intent.get("domain", "general")
+
+    # Calculate completion time
+    completion_time_ms = None
+    if handoff.completed_at and handoff.created_at:
+        delta = handoff.completed_at - handoff.created_at
+        completion_time_ms = delta.total_seconds() * 1000
+
+    event_type = "success" if status == "completed" else "failure"
+    if status == "rolled_back":
+        event_type = "failure"
+
+    await record_trust_event(
+        db=db,
+        agent_id=handoff.to_agent_id,
+        domain=domain,
+        event_type=event_type,
+        handoff_id=handoff.id,
+        completion_time_ms=completion_time_ms,
+    )
 
 
 def _handoff_to_response(h: Handoff) -> dict[str, Any]:
