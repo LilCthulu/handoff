@@ -2,6 +2,7 @@
 
 from handoff_sdk.agent import HandoffAgent
 from handoff_sdk.intent import Intent
+from handoff_sdk.task import TaskContext
 from handoff_sdk.types import (
     AgentProfile,
     Capability,
@@ -15,6 +16,7 @@ from handoff_sdk.types import (
 __all__ = [
     "HandoffAgent",
     "Intent",
+    "TaskContext",
     "AgentProfile",
     "Capability",
     "HandoffResult",
