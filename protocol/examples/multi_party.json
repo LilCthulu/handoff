@@ -1,0 +1,110 @@
+{
+  "description": "Multi-party mediated negotiation: travel agent coordinates between hotel and airline agents with a mediator",
+  "steps": [
+    {
+      "step": 1,
+      "action": "discover",
+      "from": "travel-agent",
+      "query": { "domain": "hotels", "min_trust": 0.7 },
+      "result": ["hotel-agent-a", "hotel-agent-b"]
+    },
+    {
+      "step": 2,
+      "action": "discover",
+      "from": "travel-agent",
+      "query": { "domain": "flights", "min_trust": 0.7 },
+      "result": ["airline-agent"]
+    },
+    {
+      "step": 3,
+      "action": "create_negotiation",
+      "from": "travel-agent",
+      "to": ["hotel-agent-a", "hotel-agent-b", "airline-agent"],
+      "mediator_required": true,
+      "intent": {
+        "type": "request",
+        "domain": "travel",
+        "action": "book_trip",
+        "parameters": {
+          "destination": "Tokyo",
+          "departure_city": "San Francisco",
+          "dates": { "depart": "2025-03-15", "return": "2025-03-20" },
+          "travelers": 2
+        },
+        "constraints": {
+          "budget_max": 5000,
+          "currency": "USD",
+          "must_have": ["direct_flight", "4_star_hotel"]
+        }
+      },
+      "state": "pending"
+    },
+    {
+      "step": 4,
+      "action": "mediation_started",
+      "mediator": "system",
+      "note": "Server assigns itself as mediator for multi-party negotiation",
+      "state": "negotiating"
+    },
+    {
+      "step": 5,
+      "action": "parallel_offers",
+      "offers": [
+        {
+          "from": "hotel-agent-a",
+          "terms": { "hotel": "Park Hyatt", "total": 2500 }
+        },
+        {
+          "from": "hotel-agent-b",
+          "terms": { "hotel": "Aman Tokyo", "total": 3200 }
+        },
+        {
+          "from": "airline-agent",
+          "terms": { "flight": "SFO-NRT direct", "total": 1800 }
+        }
+      ],
+      "state": "negotiating"
+    },
+    {
+      "step": 6,
+      "action": "mediator_recommendation",
+      "mediator": "system",
+      "recommendation": {
+        "best_combination": {
+          "flight": { "agent": "airline-agent", "total": 1800 },
+          "hotel": { "agent": "hotel-agent-a", "total": 2500 }
+        },
+        "combined_total": 4300,
+        "within_budget": true,
+        "note": "Park Hyatt + direct flight is under $5000 budget"
+      }
+    },
+    {
+      "step": 7,
+      "action": "accept",
+      "from": "travel-agent",
+      "accepts": ["hotel-agent-a", "airline-agent"],
+      "rejects": ["hotel-agent-b"],
+      "state": "agreed"
+    },
+    {
+      "step": 8,
+      "action": "parallel_handoffs",
+      "handoffs": [
+        { "from": "travel-agent", "to": "airline-agent", "task": "book_flights" },
+        { "from": "travel-agent", "to": "hotel-agent-a", "task": "book_hotel" }
+      ],
+      "chain_id": "chain-001",
+      "state": "executing"
+    },
+    {
+      "step": 9,
+      "action": "all_complete",
+      "results": [
+        { "agent": "airline-agent", "confirmation": "JAL-SF-TYO-1234" },
+        { "agent": "hotel-agent-a", "confirmation": "PH-TYO-5678" }
+      ],
+      "state": "completed"
+    }
+  ]
+}

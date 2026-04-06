@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://handoff.dev/schemas/handoff.schema.json",
+  "title": "Handoff Context",
+  "description": "The full context payload transferred when one agent hands off work to another.",
+  "type": "object",
+  "required": ["context"],
+  "properties": {
+    "context": {
+      "type": "object",
+      "required": ["task_description", "agreed_terms"],
+      "properties": {
+        "task_description": {
+          "type": "string",
+          "description": "Human-readable description of the task being handed off"
+        },
+        "agreed_terms": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "The agreed terms from the negotiation"
+        },
+        "input_data": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Data required to execute the task"
+        },
+        "partial_work": {
+          "type": "object",
+          "description": "State of any work already completed",
+          "properties": {
+            "steps_completed": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "steps_remaining": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "intermediate_state": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "constraints": {
+          "type": "object",
+          "description": "Execution constraints",
+          "properties": {
+            "timeout_minutes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "rollback_on_failure": {
+              "type": "boolean",
+              "default": false
+            },
+            "notify_on_completion": {
+              "type": "array",
+              "items": { "type": "string", "format": "uuid" },
+              "description": "Agent IDs to notify when done"
+            }
+          },
+          "additionalProperties": true
+        },
+        "provenance": {
+          "type": "object",
+          "description": "Chain of custody information",
+          "properties": {
+            "origin_agent": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "chain": {
+              "type": "array",
+              "items": { "type": "string", "format": "uuid" },
+              "description": "Ordered list of agents in the handoff chain"
+            },
+            "original_intent_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

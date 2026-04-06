@@ -1,0 +1,162 @@
+{
+  "description": "Full negotiation flow: travel agent negotiates hotel price with hotel agent over multiple rounds",
+  "steps": [
+    {
+      "step": 1,
+      "action": "create_negotiation",
+      "from": "travel-agent",
+      "to": "hotel-agent",
+      "intent": {
+        "id": "intent-001",
+        "type": "request",
+        "domain": "hotels",
+        "action": "book_hotel",
+        "parameters": {
+          "destination": "Tokyo",
+          "check_in": "2025-03-15",
+          "check_out": "2025-03-20",
+          "guests": 2,
+          "preferences": {
+            "star_rating_min": 4,
+            "amenities": ["wifi", "breakfast"],
+            "location": "Shibuya"
+          }
+        },
+        "constraints": {
+          "budget_max": 2000,
+          "currency": "USD",
+          "must_have": ["free_cancellation"],
+          "nice_to_have": ["late_checkout", "airport_shuttle"]
+        },
+        "priority": "high"
+      },
+      "state": "pending"
+    },
+    {
+      "step": 2,
+      "action": "offer",
+      "from": "hotel-agent",
+      "round": 1,
+      "offer": {
+        "terms": {
+          "hotel": "Park Hyatt Tokyo",
+          "room_type": "deluxe_king",
+          "price_per_night": 600,
+          "total_price": 3000,
+          "currency": "USD",
+          "cancellation_policy": "free_until_72h_before",
+          "includes": ["wifi", "gym"],
+          "excludes": ["breakfast", "late_checkout", "airport_shuttle"]
+        },
+        "concessions": [],
+        "conditions": ["payment within 48h"]
+      },
+      "state": "negotiating"
+    },
+    {
+      "step": 3,
+      "action": "counter",
+      "from": "travel-agent",
+      "round": 2,
+      "offer": {
+        "terms": {
+          "hotel": "Park Hyatt Tokyo",
+          "room_type": "deluxe_king",
+          "price_per_night": 300,
+          "total_price": 1500,
+          "currency": "USD",
+          "cancellation_policy": "free_until_72h_before",
+          "includes": ["wifi", "breakfast", "gym"],
+          "excludes": ["airport_shuttle"]
+        },
+        "concessions": ["dropped airport_shuttle requirement"],
+        "conditions": []
+      },
+      "state": "negotiating"
+    },
+    {
+      "step": 4,
+      "action": "counter",
+      "from": "hotel-agent",
+      "round": 3,
+      "offer": {
+        "terms": {
+          "hotel": "Park Hyatt Tokyo",
+          "room_type": "deluxe_king",
+          "price_per_night": 480,
+          "total_price": 2400,
+          "currency": "USD",
+          "cancellation_policy": "free_until_72h_before",
+          "includes": ["wifi", "breakfast", "gym"],
+          "excludes": ["airport_shuttle"]
+        },
+        "concessions": ["added breakfast", "reduced from 600 to 480 per night"],
+        "conditions": ["payment within 48h"]
+      },
+      "state": "negotiating"
+    },
+    {
+      "step": 5,
+      "action": "counter",
+      "from": "travel-agent",
+      "round": 4,
+      "offer": {
+        "terms": {
+          "hotel": "Park Hyatt Tokyo",
+          "room_type": "deluxe_king",
+          "price_per_night": 400,
+          "total_price": 2000,
+          "currency": "USD",
+          "cancellation_policy": "free_until_72h_before",
+          "includes": ["wifi", "breakfast", "gym", "late_checkout"],
+          "excludes": ["airport_shuttle"]
+        },
+        "concessions": ["willing to pay up to budget max"],
+        "conditions": ["must include late checkout"]
+      },
+      "state": "negotiating"
+    },
+    {
+      "step": 6,
+      "action": "counter",
+      "from": "hotel-agent",
+      "round": 5,
+      "offer": {
+        "terms": {
+          "hotel": "Park Hyatt Tokyo",
+          "room_type": "deluxe_king",
+          "price_per_night": 420,
+          "total_price": 2100,
+          "currency": "USD",
+          "cancellation_policy": "free_until_72h_before",
+          "includes": ["wifi", "breakfast", "gym"],
+          "excludes": ["late_checkout", "airport_shuttle"]
+        },
+        "concessions": ["dropped to 420 per night"],
+        "conditions": ["payment within 24h", "no late checkout at this price"]
+      },
+      "state": "negotiating"
+    },
+    {
+      "step": 7,
+      "action": "accept",
+      "from": "travel-agent",
+      "note": "Over budget by $100 but acceptable — breakfast included offsets it",
+      "state": "agreed"
+    },
+    {
+      "step": 8,
+      "action": "handoff",
+      "from": "travel-agent",
+      "to": "hotel-agent",
+      "state": "executing"
+    },
+    {
+      "step": 9,
+      "action": "complete",
+      "from": "hotel-agent",
+      "result": { "confirmation_number": "PH-TYO-2025-78432" },
+      "state": "completed"
+    }
+  ]
+}
