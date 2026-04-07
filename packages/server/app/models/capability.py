@@ -45,6 +45,16 @@ class CapabilityContract(Base):
     availability_target: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0.0-1.0
     max_concurrent: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Obligation declarations — what the agent commits to regarding data handling
+    obligations: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
+    # {
+    #   "data_retention": "none_after_completion",  # none_after_completion | 30_days | permanent
+    #   "pii_access": "sealed_references_only",     # sealed_references_only | committed_layer | none
+    #   "external_apis": ["hyatt-booking-api.com"],  # list of external services the agent calls
+    #   "logging": "anonymized",                     # anonymized | full | none
+    #   "data_sharing": "none"                       # none | aggregated | third_party
+    # }
+
     # Constraints and metadata
     constraints: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

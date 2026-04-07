@@ -190,4 +190,103 @@ async def validate_handoff_result(
             violations=violations,
         )
 
+    # Obligation compliance check
+    obligation_violations = validate_obligations(contract, handoff)
+    if obligation_violations:
+        sla_report["obligation_violations"] = obligation_violations
+        logger.warning(
+            "obligation_violation",
+            handoff_id=str(handoff.id),
+            violations=obligation_violations,
+        )
+
     return contract, violations, sla_report
+
+
+def validate_obligations(
+    contract: CapabilityContract,
+    handoff: Handoff,
+) -> list[str]:
+    """Check handoff behavior against the contract's declared obligations.
+
+    Obligations are binding commitments. Violations don't block completion
+    but are recorded in the audit trail and penalize trust.
+
+    Checks:
+    - pii_access: if "sealed_references_only", verify context only contains
+      sealed tokens (not raw PII fields).
+    - pii_access: if "none", verify no sealed references were resolved.
+    - data_retention: recorded for post-completion audit (agent attests compliance).
+    - external_apis: if declared, flag undeclared API calls found in proof-of-work.
+    """
+    obligations = contract.obligations or {}
+    if not obligations:
+        return []
+
+    violations: list[str] = []
+    context = handoff.context or {}
+    result = handoff.result or {}
+
+    # PII access enforcement
+    pii_access = obligations.get("pii_access")
+    if pii_access == "none":
+        # Agent declared no PII access — check that no sealed refs exist in context
+        privacy = context.get("_privacy", {})
+        sealed_refs = privacy.get("sealed_refs", [])
+        if sealed_refs:
+            violations.append(
+                f"Obligation pii_access='none' violated: context contains {len(sealed_refs)} sealed reference(s)"
+            )
+
+    elif pii_access == "sealed_references_only":
+        # Agent should only access PII through sealed tokens, not raw values.
+        # Check that committed layer fields (if present) use sealed tokens.
+        committed = context.get("committed", {})
+        if committed and not isinstance(committed.get("_encrypted_to"), str):
+            # If there's a committed layer without encryption, that's a concern
+            for key, value in committed.items():
+                if key.startswith("_"):
+                    continue
+                if isinstance(value, str) and not value.startswith("sealed:"):
+                    # Raw value in committed layer when obligation says sealed only
+                    violations.append(
+                        f"Obligation pii_access='sealed_references_only' violated: "
+                        f"committed field '{key}' contains raw value instead of sealed reference"
+                    )
+
+    # External API enforcement — check proof-of-work for undeclared APIs
+    declared_apis = set(obligations.get("external_apis", []))
+    if declared_apis:
+        proof = result.get("proof", {})
+        if isinstance(proof, dict):
+            # Check if proof references any API not in the declared list
+            proof_data = proof.get("data", {})
+            for key, value in proof_data.items():
+                if "api" in key.lower() or "endpoint" in key.lower() or "url" in key.lower():
+                    if isinstance(value, str):
+                        # Extract domain from URLs or API names
+                        api_ref = _extract_api_domain(value)
+                        if api_ref and api_ref not in declared_apis:
+                            violations.append(
+                                f"Obligation external_apis violated: "
+                                f"undeclared API '{api_ref}' found in proof-of-work"
+                            )
+
+    return violations
+
+
+def _extract_api_domain(value: str) -> str | None:
+    """Extract domain from a URL or API reference string."""
+    value = value.strip()
+    if "://" in value:
+        # URL — extract domain
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(value)
+            return parsed.hostname
+        except Exception:
+            return value
+    elif "." in value and " " not in value:
+        # Likely a domain name
+        return value
+    return None
