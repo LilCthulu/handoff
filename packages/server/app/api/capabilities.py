@@ -25,6 +25,21 @@ logger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1/capabilities", tags=["capabilities"])
 
 
+class ObligationDeclaration(BaseModel):
+    """Binding commitments about data handling and external access."""
+    data_retention: str = "none_after_completion"  # none_after_completion | 30_days | permanent
+    pii_access: str = "sealed_references_only"  # sealed_references_only | committed_layer | none
+    external_apis: list[str] = []  # declared external services the agent calls
+    logging: str = "anonymized"  # anonymized | full | none
+    data_sharing: str = "none"  # none | aggregated | third_party
+
+
+VALID_DATA_RETENTION = {"none_after_completion", "30_days", "permanent"}
+VALID_PII_ACCESS = {"sealed_references_only", "committed_layer", "none"}
+VALID_LOGGING = {"anonymized", "full", "none"}
+VALID_DATA_SHARING = {"none", "aggregated", "third_party"}
+
+
 class RegisterCapabilityRequest(BaseModel):
     domain: str
     action: str
@@ -34,6 +49,7 @@ class RegisterCapabilityRequest(BaseModel):
     max_latency_ms: int | None = None
     availability_target: float | None = None
     max_concurrent: int | None = None
+    obligations: dict = {}
     constraints: dict = {}
     description: str | None = None
     examples: list = []
@@ -45,6 +61,7 @@ class UpdateCapabilityRequest(BaseModel):
     max_latency_ms: int | None = None
     availability_target: float | None = None
     max_concurrent: int | None = None
+    obligations: dict | None = None
     constraints: dict | None = None
     description: str | None = None
     examples: list | None = None
@@ -77,6 +94,10 @@ async def register_capability(
         existing.is_active = False
         existing.updated_at = datetime.now(timezone.utc)
 
+    # Validate obligation values if provided
+    if req.obligations:
+        _validate_obligations(req.obligations)
+
     contract = CapabilityContract(
         agent_id=caller_id,
         domain=req.domain,
@@ -87,6 +108,7 @@ async def register_capability(
         max_latency_ms=req.max_latency_ms,
         availability_target=req.availability_target,
         max_concurrent=req.max_concurrent,
+        obligations=req.obligations,
         constraints=req.constraints,
         description=req.description,
         examples=req.examples,
@@ -181,6 +203,9 @@ async def update_capability(
     if contract.agent_id != caller_id:
         raise HTTPException(status_code=403, detail="Only the owning agent can update this contract")
 
+    if req.obligations is not None:
+        _validate_obligations(req.obligations)
+
     for field in req.model_fields_set:
         setattr(contract, field, getattr(req, field))
     contract.updated_at = datetime.now(timezone.utc)
@@ -211,6 +236,36 @@ async def deactivate_capability(
     await db.commit()
 
 
+def _validate_obligations(obligations: dict) -> None:
+    """Validate obligation field values. Raises HTTPException on invalid values."""
+    if "data_retention" in obligations and obligations["data_retention"] not in VALID_DATA_RETENTION:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid data_retention. Must be one of: {', '.join(sorted(VALID_DATA_RETENTION))}",
+        )
+    if "pii_access" in obligations and obligations["pii_access"] not in VALID_PII_ACCESS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid pii_access. Must be one of: {', '.join(sorted(VALID_PII_ACCESS))}",
+        )
+    if "logging" in obligations and obligations["logging"] not in VALID_LOGGING:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid logging. Must be one of: {', '.join(sorted(VALID_LOGGING))}",
+        )
+    if "data_sharing" in obligations and obligations["data_sharing"] not in VALID_DATA_SHARING:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid data_sharing. Must be one of: {', '.join(sorted(VALID_DATA_SHARING))}",
+        )
+    if "external_apis" in obligations:
+        if not isinstance(obligations["external_apis"], list):
+            raise HTTPException(status_code=400, detail="external_apis must be a list of strings")
+        for api in obligations["external_apis"]:
+            if not isinstance(api, str):
+                raise HTTPException(status_code=400, detail="Each external_apis entry must be a string")
+
+
 def _contract_to_response(c: CapabilityContract) -> dict[str, Any]:
     return {
         "id": str(c.id),
@@ -223,6 +278,7 @@ def _contract_to_response(c: CapabilityContract) -> dict[str, Any]:
         "max_latency_ms": c.max_latency_ms,
         "availability_target": c.availability_target,
         "max_concurrent": c.max_concurrent,
+        "obligations": c.obligations,
         "constraints": c.constraints,
         "description": c.description,
         "examples": c.examples,
