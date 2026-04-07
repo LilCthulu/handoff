@@ -17,3 +17,4 @@ from app.models.trust import TrustScore, TrustEvent  # noqa: E402, F401
 from app.models.capability import CapabilityContract  # noqa: E402, F401
 from app.models.attestation import Attestation, CapabilityChallenge  # noqa: E402, F401
 from app.models.delivery import DeliveryReceipt  # noqa: E402, F401
+from app.models.checkpoint import HandoffCheckpoint  # noqa: E402, F401

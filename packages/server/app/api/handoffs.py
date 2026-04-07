@@ -29,6 +29,7 @@ from app.schemas.handoff import (
 )
 from app.api.deps import get_current_agent, get_agent_id
 from app.services.contract_enforcement import validate_handoff_input, validate_handoff_result
+from app.services.context_privacy import minimize_context
 
 logger = structlog.get_logger()
 
@@ -77,6 +78,16 @@ async def create_handoff(
             },
         )
 
+    # Data minimization: if a contract exists, strip fields not in input_schema
+    delivered_context = req.context
+    if contract and contract.input_schema:
+        delivered_context = minimize_context(req.context, contract.input_schema)
+        logger.info(
+            "context_minimized",
+            original_keys=len(req.context),
+            minimized_keys=len(delivered_context),
+        )
+
     # Generate chain_id if this is the first in a chain
     chain_id = req.chain_id or uuid.uuid4()
 
@@ -88,7 +99,7 @@ async def create_handoff(
         negotiation_id=req.negotiation_id,
         from_agent_id=caller_id,
         to_agent_id=req.to_agent_id,
-        context=req.context,
+        context=delivered_context,
         chain_id=chain_id,
         chain_position=req.chain_position,
         parent_handoff_id=req.parent_handoff_id,

@@ -365,6 +365,16 @@ class TaskExecutor:
         if handoff_id in self._router._running:
             return
 
+        # Build progress reporter
+        async def _report_progress(message: str, percent: float) -> None:
+            try:
+                await self._client.post(
+                    f"/api/v1/progress/handoffs/{handoff_id}/update",
+                    {"phase": message, "progress": percent, "message": message},
+                )
+            except Exception:
+                logger.warning("progress_report_failed", handoff_id=handoff_id)
+
         ctx = TaskContext(
             handoff_id=handoff_id,
             from_agent_id=str(handoff_data.get("from_agent_id", "")),
@@ -374,6 +384,7 @@ class TaskExecutor:
             negotiation_id=str(handoff_data["negotiation_id"]) if handoff_data.get("negotiation_id") else None,
             chain_id=str(handoff_data["chain_id"]) if handoff_data.get("chain_id") else None,
             metadata=context.get("metadata", {}),
+            _progress_fn=_report_progress,
         )
 
         async def _run_and_complete() -> None:

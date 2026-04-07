@@ -82,6 +82,9 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
                     _handle_room_leave(agent_id, data)
                 elif msg_type.startswith("negotiate."):
                     await _handle_negotiation(agent_id, msg_type, data)
+                elif msg_type == "handoff.progress":
+                    from app.api.progress import handle_ws_progress
+                    await handle_ws_progress(agent_id, data)
                 else:
                     await manager.send_to_agent(agent_id, {
                         "type": "error",
