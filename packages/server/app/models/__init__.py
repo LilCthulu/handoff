@@ -18,3 +18,5 @@ from app.models.capability import CapabilityContract  # noqa: E402, F401
 from app.models.attestation import Attestation, CapabilityChallenge  # noqa: E402, F401
 from app.models.delivery import DeliveryReceipt  # noqa: E402, F401
 from app.models.checkpoint import HandoffCheckpoint  # noqa: E402, F401
+from app.models.stake import AgentStake, AgentBalance  # noqa: E402, F401
+from app.models.credential import ThirdPartyCredential  # noqa: E402, F401
