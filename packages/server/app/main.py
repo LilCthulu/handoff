@@ -31,6 +31,8 @@ from app.api.challenges import router as challenges_router
 from app.api.delivery import router as delivery_router
 from app.api.progress import router as progress_router
 from app.api.context import router as context_router
+from app.api.stakes import router as stakes_router
+from app.api.credentials import router as credentials_router
 from app.websocket.handlers import router as ws_router
 
 logger = structlog.get_logger()
@@ -101,6 +103,8 @@ app.include_router(challenges_router)
 app.include_router(delivery_router)
 app.include_router(progress_router)
 app.include_router(context_router)
+app.include_router(stakes_router)
+app.include_router(credentials_router)
 app.include_router(ws_router)
 
 # --- Extensions (proprietary cloud features loaded at runtime) ---
