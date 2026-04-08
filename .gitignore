@@ -51,3 +51,7 @@ redis_data/
 # Internal docs — not for public repo
 HANDOFF_SPEC.md
 CONTEXT.md
+SESSION_STATE.md
+PROGRESS.md
+DECISIONS.md
+GUARDRAILS.md
