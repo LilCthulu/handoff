@@ -26,6 +26,7 @@ out/
 
 # AI tools
 .claude/
+CLAUDE.md
 
 # Environment
 .env
