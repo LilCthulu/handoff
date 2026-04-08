@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import create_agent_token
 from app.core.crypto import public_key_fingerprint, verify_signature
+from app.config import settings
 from app.database import get_db
 from app.models.agent import Agent
 from app.models.audit import AuditLog
@@ -330,7 +331,7 @@ async def discover_agents(
     """Discover agents by capability, trust score, and status."""
     query = select(Agent).where(Agent.status == status, Agent.trust_score >= min_trust)
 
-    if domain:
+    if domain and settings.DATABASE_URL.startswith("postgresql"):
         # Use PostgreSQL JSONB containment with parameterized value — no string interpolation
         query = query.where(
             Agent.capabilities.op("@>")(cast([{"domain": domain}], JSONB))
@@ -341,11 +342,16 @@ async def discover_agents(
     result = await db.execute(query)
     agents = result.scalars().all()
 
-    # Post-filter by action if specified (JSONB containment for nested arrays is complex)
+    # Post-filter by domain for non-PostgreSQL backends (SQLite)
+    if domain and not settings.DATABASE_URL.startswith("postgresql"):
+        agents = [
+            a for a in agents
+            if any(cap.get("domain") == domain for cap in (a.capabilities or []))
+        ]
     if action:
         agents = [
             a for a in agents
-            if any(action in cap.get("actions", []) for cap in a.capabilities)
+            if any(action in cap.get("actions", []) for cap in (a.capabilities or []))
         ]
 
     return [_agent_to_response(a) for a in agents]
