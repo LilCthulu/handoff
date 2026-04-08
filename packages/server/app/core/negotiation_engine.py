@@ -119,10 +119,15 @@ def submit_offer(
 
     # Check timeout
     timeout_at = negotiation_dict.get("timeout_at")
-    if timeout_at and isinstance(timeout_at, datetime) and datetime.now(timezone.utc) > timeout_at:
-        negotiation_dict["state"] = NegotiationState.FAILED
-        negotiation_dict["updated_at"] = datetime.now(timezone.utc)
-        raise NegotiationError("Negotiation timed out")
+    if timeout_at and isinstance(timeout_at, datetime):
+        # Ensure both sides are timezone-aware for comparison
+        now_utc = datetime.now(timezone.utc)
+        if timeout_at.tzinfo is None:
+            timeout_at = timeout_at.replace(tzinfo=timezone.utc)
+        if now_utc > timeout_at:
+            negotiation_dict["state"] = NegotiationState.FAILED
+            negotiation_dict["updated_at"] = datetime.now(timezone.utc)
+            raise NegotiationError("Negotiation timed out")
 
     offer = {
         "id": str(uuid.uuid4()),
