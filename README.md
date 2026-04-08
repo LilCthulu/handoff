@@ -6,6 +6,8 @@
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
     <img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/tests-253%20passing-brightgreen.svg" alt="253 tests">
+    <a href="https://github.com/LilCthulu/handoff/issues"><img src="https://img.shields.io/github/issues/LilCthulu/handoff.svg" alt="Issues"></a>
+    <a href="https://github.com/LilCthulu/handoff/stargazers"><img src="https://img.shields.io/github/stars/LilCthulu/handoff.svg?style=social" alt="Stars"></a>
   </p>
   <p align="center">
     <a href="#quick-start">Quick Start</a> &middot;
