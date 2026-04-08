@@ -47,7 +47,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from app.database import create_tables
         await create_tables()
         logger.info("sqlite_tables_created")
+
+    # Initialize Redis (gracefully falls back to in-memory if unavailable)
+    from app.redis import get_redis
+    await get_redis()
+
+    # Initialize WebSocket pub/sub for cross-instance fan-out
+    from app.websocket.manager import manager as ws_manager
+    await ws_manager.init_pubsub()
+
     yield
+
+    # Shutdown
+    await ws_manager.close_pubsub()
+    from app.redis import close_redis
+    await close_redis()
     logger.info("handoff_server_shutting_down")
 
 
@@ -100,8 +114,12 @@ app.add_middleware(
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.auth import AuthMiddleware
 from app.middleware.body_limit import BodyLimitMiddleware
+from app.middleware.csrf import CSRFMiddleware
 
+# Starlette add_middleware prepends: last added = outermost.
+# Execution order: BodyLimit -> Auth -> CSRF -> RateLimit -> Route handler
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(CSRFMiddleware)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(BodyLimitMiddleware, max_body_bytes=2 * 1024 * 1024)  # 2 MB
 
@@ -120,4 +138,10 @@ async def negotiation_error_handler(request: Request, exc: NegotiationError) -> 
 @app.get("/health")
 async def health() -> dict:
     """Health check endpoint."""
-    return {"status": "ok", "extensions_loaded": len(_loaded_extensions)}
+    from app.redis import get_redis
+    redis = await get_redis()
+    return {
+        "status": "ok",
+        "extensions_loaded": len(_loaded_extensions),
+        "redis": "connected" if redis else "unavailable",
+    }
