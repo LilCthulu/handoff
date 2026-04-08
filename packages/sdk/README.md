@@ -13,11 +13,12 @@ pip install handoff-sdk
 ```python
 from handoff_sdk import HandoffAgent, Intent
 
-# Register
+# Register (api_key links agent to your org for billing/metering)
 agent = HandoffAgent(name="my-agent", server="http://localhost:8000")
 await agent.register(
     capabilities=[{"domain": "travel", "actions": ["search", "book"]}],
     description="Travel booking assistant",
+    api_key="hk_...",  # Optional: from Handoff Cloud console
 )
 
 # Discover
