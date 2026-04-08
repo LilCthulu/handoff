@@ -1,0 +1,18 @@
+# Test and dev files
+tests/
+.pytest_cache/
+__pycache__/
+*.pyc
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# Docs (not needed in container)
+README.md
+CHANGELOG.md
