@@ -44,7 +44,9 @@ PUBLIC_PREFIXES: tuple[str, ...] = (
     "/api/v1/agents/register",
     "/api/v1/agents/challenge",
     "/api/v1/agents/authenticate",
-    "/api/v1/attestations/agent/",       # public trust records for pre-negotiation discovery
+    "/api/v1/attestations/agent/",
+    "/api/v1/accounts/",
+    "/api/v1/billing/",
     "/api/v1/dashboard/",
     "/ws/",
 )
