@@ -30,6 +30,13 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["app*"]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning:pytest_asyncio",
+]
+
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"

@@ -187,7 +187,10 @@ async def respond_to_challenge(
         )
 
     now = datetime.now(timezone.utc)
-    elapsed_ms = (now - challenge.created_at).total_seconds() * 1000
+    created = challenge.created_at
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    elapsed_ms = (now - created).total_seconds() * 1000
 
     challenge.response = req.response
     challenge.response_time_ms = round(elapsed_ms, 2)

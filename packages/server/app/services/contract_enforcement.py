@@ -164,7 +164,10 @@ async def validate_handoff_result(
     if contract.max_latency_ms and handoff.created_at:
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
-        elapsed_ms = (now - handoff.created_at).total_seconds() * 1000
+        created = handoff.created_at
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        elapsed_ms = (now - created).total_seconds() * 1000
 
         sla_report["elapsed_ms"] = round(elapsed_ms, 2)
         sla_report["max_latency_ms"] = contract.max_latency_ms

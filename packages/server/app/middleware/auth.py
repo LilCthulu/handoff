@@ -44,8 +44,15 @@ PUBLIC_PREFIXES: tuple[str, ...] = (
     "/api/v1/agents/register",
     "/api/v1/agents/challenge",
     "/api/v1/agents/authenticate",
+    "/api/v1/attestations/agent/",       # public trust records for pre-negotiation discovery
     "/api/v1/dashboard/",
     "/ws/",
+)
+
+# Exact path suffix patterns for public GET/POST endpoints
+# These allow specific operations without auth (e.g., signature verification)
+PUBLIC_SUFFIX_PATTERNS: tuple[str, ...] = (
+    "/verify",           # attestation and delivery verification endpoints
 )
 
 
@@ -68,6 +75,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         # Skip auth for public paths
         if path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES):
+            return await call_next(request)
+
+        # Skip auth for specific public suffix patterns (e.g., /verify endpoints)
+        if any(path.endswith(suffix) for suffix in PUBLIC_SUFFIX_PATTERNS):
             return await call_next(request)
 
         # Extract token
@@ -232,11 +243,12 @@ async def verify_signed_envelope(request: Request) -> dict[str, Any] | None:
 
 
 def _client_ip(request: Request) -> str:
-    """Extract client IP, respecting X-Forwarded-For behind proxies."""
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        # Take the first (client) IP from the chain
-        return forwarded.split(",")[0].strip()
+    """Extract client IP from the direct connection.
+
+    Uses the direct socket IP rather than X-Forwarded-For to prevent
+    spoofing. When behind a reverse proxy, configure the proxy and
+    ASGI server to set the correct client IP (e.g., uvicorn --proxy-headers).
+    """
     if request.client:
         return request.client.host
     return "unknown"

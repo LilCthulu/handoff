@@ -77,7 +77,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
                 if msg_type == "heartbeat":
                     await _handle_heartbeat(agent_id)
                 elif msg_type == "room.join":
-                    _handle_room_join(agent_id, data)
+                    await _handle_room_join(agent_id, data)
                 elif msg_type == "room.leave":
                     _handle_room_leave(agent_id, data)
                 elif msg_type.startswith("negotiate."):
@@ -90,11 +90,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
                         "type": "error",
                         "detail": f"Unknown message type: {msg_type}",
                     })
-            except Exception as e:
+            except Exception:
                 logger.exception("ws_handler_error", agent_id=str(agent_id), msg_type=msg_type)
                 await manager.send_to_agent(agent_id, {
                     "type": "error",
-                    "detail": str(e),
+                    "detail": "Internal error processing message",
                 })
 
     except WebSocketDisconnect:
@@ -118,11 +118,36 @@ async def _handle_heartbeat(agent_id: uuid.UUID) -> None:
 
 # --- Room management ---
 
-def _handle_room_join(agent_id: uuid.UUID, data: dict[str, Any]) -> None:
-    """Join a room (typically a negotiation ID)."""
+async def _handle_room_join(agent_id: uuid.UUID, data: dict[str, Any]) -> None:
+    """Join a room. Validates that the agent is a participant in the underlying entity."""
     room = data.get("room", "")
-    if room:
-        manager.join_room(agent_id, room)
+    if not room:
+        return
+
+    # Validate participation for entity-scoped rooms
+    if room.startswith("negotiation:") or room.startswith("handoff:"):
+        entity_type, _, entity_id_str = room.partition(":")
+        try:
+            entity_id = uuid.UUID(entity_id_str)
+        except ValueError:
+            await manager.send_to_agent(agent_id, {"type": "error", "detail": "Invalid room ID"})
+            return
+
+        async with async_session() as db:
+            if entity_type == "negotiation":
+                neg = await _get_negotiation(db, entity_id)
+                if not neg or agent_id not in (neg.initiator_id, neg.responder_id):
+                    await manager.send_to_agent(agent_id, {"type": "error", "detail": "Not a participant in this negotiation"})
+                    return
+            elif entity_type == "handoff":
+                from app.models.handoff import Handoff
+                result = await db.execute(select(Handoff).where(Handoff.id == entity_id))
+                handoff = result.scalar_one_or_none()
+                if not handoff or agent_id not in (handoff.from_agent_id, handoff.to_agent_id):
+                    await manager.send_to_agent(agent_id, {"type": "error", "detail": "Not a participant in this handoff"})
+                    return
+
+    manager.join_room(agent_id, room)
 
 
 def _handle_room_leave(agent_id: uuid.UUID, data: dict[str, Any]) -> None:

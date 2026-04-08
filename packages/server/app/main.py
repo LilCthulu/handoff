@@ -58,38 +58,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS.split(","),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# --- Security middleware ---
-# Starlette add_middleware prepends: last added = outermost.
-# Execution order: Auth (outermost) -> RateLimit (inner) -> Route handler
-# Auth runs first so request.state.agent_id is set for per-agent rate limiting.
-# Unauthenticated requests (public paths) still get per-IP rate limiting.
-
-from app.middleware.rate_limit import RateLimitMiddleware
-from app.middleware.auth import AuthMiddleware
-
-app.add_middleware(RateLimitMiddleware)  # inner: rate limit with agent_id available
-app.add_middleware(AuthMiddleware)       # outer: validate JWT + set request.state.agent_id
-
-# --- Exception handlers ---
-
-@app.exception_handler(AuthError)
-async def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
-
-
-@app.exception_handler(NegotiationError)
-async def negotiation_error_handler(request: Request, exc: NegotiationError) -> JSONResponse:
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
-
-
 # --- Core routers (open-source) ---
 
 app.include_router(agents_router)
@@ -108,11 +76,48 @@ app.include_router(credentials_router)
 app.include_router(ws_router)
 
 # --- Extensions (proprietary cloud features loaded at runtime) ---
+# Extensions MUST be loaded before middleware — Starlette's BaseHTTPMiddleware
+# captures the app's route table at registration time. Routes added after
+# middleware wrapping are not visible through the middleware stack.
 
 _loaded_extensions = load_extensions(app)
+
+# --- Middleware ---
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS.split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Starlette add_middleware prepends: last added = outermost.
+# Execution order: Auth (outermost) -> RateLimit (inner) -> Route handler
+# Auth runs first so request.state.agent_id is set for per-agent rate limiting.
+# Unauthenticated requests (public paths) still get per-IP rate limiting.
+
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.auth import AuthMiddleware
+from app.middleware.body_limit import BodyLimitMiddleware
+
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(AuthMiddleware)
+app.add_middleware(BodyLimitMiddleware, max_body_bytes=2 * 1024 * 1024)  # 2 MB
+
+# --- Exception handlers ---
+
+@app.exception_handler(AuthError)
+async def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.exception_handler(NegotiationError)
+async def negotiation_error_handler(request: Request, exc: NegotiationError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
 @app.get("/health")
 async def health() -> dict:
     """Health check endpoint."""
-    return {"status": "ok", "extensions": _loaded_extensions}
+    return {"status": "ok", "extensions_loaded": len(_loaded_extensions)}

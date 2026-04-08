@@ -222,10 +222,13 @@ def _rate_limit_response(
 
 
 def _client_ip(request: Request) -> str:
-    """Extract client IP, respecting X-Forwarded-For behind proxies."""
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    """Extract client IP from the direct connection.
+
+    We use the direct client IP for rate limiting rather than
+    X-Forwarded-For, which can be spoofed by any client. If running
+    behind a reverse proxy, configure the proxy to set the real IP
+    and use a trusted-proxy-aware ASGI server (e.g., uvicorn --proxy-headers).
+    """
     if request.client:
         return request.client.host
     return "unknown"

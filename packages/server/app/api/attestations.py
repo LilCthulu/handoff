@@ -97,7 +97,7 @@ async def create_attestation(
     if not attester:
         raise HTTPException(status_code=404, detail="Attesting agent not found")
 
-    # Verify the signature
+    # Verify the signature — reject invalid signatures outright
     import base64
     import nacl.signing
     try:
@@ -109,7 +109,10 @@ async def create_attestation(
         verified = True
     except Exception:
         logger.warning("attestation_signature_invalid", attester=str(caller_id))
-        verified = False
+        raise HTTPException(
+            status_code=400,
+            detail="Attestation signature is invalid — claim must be signed with your Ed25519 key",
+        )
 
     # Determine domain from handoff context or claim
     domain = req.claim.get("domain", "general")
