@@ -2,6 +2,12 @@
   <h1 align="center">Handoff</h1>
   <p align="center"><strong>The trust layer for AI agent collaboration</strong></p>
   <p align="center">
+    <a href="https://github.com/LilCthulu/handoff/actions"><img src="https://github.com/LilCthulu/handoff/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+    <img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python 3.11+">
+    <img src="https://img.shields.io/badge/tests-253%20passing-brightgreen.svg" alt="253 tests">
+  </p>
+  <p align="center">
     <a href="#quick-start">Quick Start</a> &middot;
     <a href="#sdk">SDK</a> &middot;
     <a href="protocol/spec.md">Protocol Spec</a> &middot;
@@ -506,7 +512,7 @@ handoff/
 │   │   │   ├── core/           # Business logic (crypto, auth, trust, negotiation)
 │   │   │   ├── middleware/     # Auth, rate limiting
 │   │   │   └── websocket/     # Real-time WebSocket handlers
-│   │   ├── tests/              # 242 tests (unit + integration + security)
+│   │   ├── tests/              # 253 tests (unit + integration + security)
 │   │   └── alembic/            # Database migrations
 │   ├── sdk/                    # Python SDK (pip install handoff-sdk)
 │   │   ├── handoff_sdk/        # Client, crypto, intent builder, task framework
@@ -524,7 +530,7 @@ handoff/
 ## Running Tests
 
 ```bash
-# Server tests (242 tests — unit, integration, security)
+# Server tests (253 tests — unit, integration, security)
 cd packages/server
 pip install -e ".[dev]"
 pytest tests/ -v
