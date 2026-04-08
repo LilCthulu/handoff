@@ -334,7 +334,7 @@ All endpoints are under `/api/v1/`. Authentication is via `Authorization: Bearer
 
 | Method | Endpoint | Description |
 |--------|---------|-------------|
-| `POST` | `/agents/register` | Register with capabilities and public key |
+| `POST` | `/agents/register` | Register with capabilities and public key (optional `api_key` for org linking) |
 | `POST` | `/agents/challenge` | Request a challenge nonce |
 | `POST` | `/agents/authenticate` | Submit signed challenge for JWT |
 | `GET` | `/agents/{id}` | Get agent profile |
