@@ -1,14 +1,20 @@
-version: "3.9"
+# Handoff Protocol Server — development and production compose.
+#
+# Development:  docker compose up
+# Production:   docker compose --env-file .env.production up -d
+#
+# For the full cloud stack (dashboard, billing, OAuth):
+#   docker compose -f docker-compose.yml -f ../handoff-cloud/docker-compose.yml up
 
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: handoff
-      POSTGRES_PASSWORD: handoff
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-handoff}
       POSTGRES_DB: handoff
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -16,40 +22,44 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
-    image: redis:7
+    image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   server:
     build:
       context: ./packages/server
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "${SERVER_PORT:-8000}:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://handoff:handoff@postgres:5432/handoff
+      DATABASE_URL: postgresql+asyncpg://handoff:${POSTGRES_PASSWORD:-handoff}@postgres:5432/handoff
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       JWT_EXPIRY_HOURS: ${JWT_EXPIRY_HOURS:-24}
-      SERVER_HOST: 0.0.0.0
-      SERVER_PORT: 8000
-      CORS_ORIGINS: http://localhost:3000
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "8000"
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      # To load cloud extensions: HANDOFF_EXTENSIONS=handoff_cloud.routes
+      ENVIRONMENT: ${ENVIRONMENT:-development}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data:
