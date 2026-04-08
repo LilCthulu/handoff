@@ -27,6 +27,7 @@ from app.schemas.handoff import (
     HandoffResultRequest,
     HandoffStatusUpdate,
 )
+from app.core.auth import require_scope
 from app.api.deps import get_current_agent, get_agent_id
 from app.services.contract_enforcement import validate_handoff_input, validate_handoff_result
 from app.services.context_privacy import minimize_context
@@ -41,8 +42,11 @@ async def create_handoff(
     req: HandoffCreateRequest,
     db: AsyncSession = Depends(get_db),
     caller_id: uuid.UUID = Depends(get_agent_id),
+    claims: dict = Depends(get_current_agent),
 ) -> dict[str, Any]:
     """Initiate a handoff — transfer work context to another agent."""
+    require_scope(claims, "handoff")
+
     # Verify target agent
     to_agent = await db.get(Agent, req.to_agent_id)
     if not to_agent or to_agent.status != "active":
@@ -137,10 +141,12 @@ async def create_handoff(
 async def get_handoff(
     handoff_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> dict[str, Any]:
-    """Get handoff status and context."""
+    """Get handoff status and context. Only participants can view."""
     handoff = await _get_handoff_or_404(db, handoff_id)
+    if caller_id not in (handoff.from_agent_id, handoff.to_agent_id):
+        raise HTTPException(status_code=403, detail="Not a participant in this handoff")
     return _handoff_to_response(handoff)
 
 
@@ -308,9 +314,9 @@ async def rollback_handoff(
 async def get_handoff_chain(
     chain_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> list[dict[str, Any]]:
-    """Get the full chain of custody for a multi-hop handoff."""
+    """Get the full chain of custody for a multi-hop handoff. Must be a participant in at least one."""
     result = await db.execute(
         select(Handoff)
         .where(Handoff.chain_id == chain_id)
@@ -319,23 +325,42 @@ async def get_handoff_chain(
     handoffs = result.scalars().all()
     if not handoffs:
         raise HTTPException(status_code=404, detail="Chain not found")
+    # Caller must be a participant in at least one handoff in the chain
+    is_participant = any(
+        caller_id in (h.from_agent_id, h.to_agent_id) for h in handoffs
+    )
+    if not is_participant:
+        raise HTTPException(status_code=403, detail="Not a participant in this handoff chain")
     return [_handoff_to_response(h) for h in handoffs]
 
+
+VALID_AUDIT_ENTITY_TYPES = {"agent", "negotiation", "handoff", "stake", "capability", "attestation", "delivery"}
 
 @router.get("/audit/{entity_type}/{entity_id}", response_model=list[AuditLogResponse])
 async def get_audit_trail(
     entity_type: str,
     entity_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> list[dict[str, Any]]:
-    """Get the full audit trail for any entity."""
+    """Get the audit trail for an entity. Caller must be a participant."""
+    if entity_type not in VALID_AUDIT_ENTITY_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid entity_type. Must be one of: {', '.join(sorted(VALID_AUDIT_ENTITY_TYPES))}")
+
     result = await db.execute(
         select(AuditLog)
         .where(AuditLog.entity_type == entity_type, AuditLog.entity_id == entity_id)
         .order_by(AuditLog.created_at.desc())
+        .limit(200)
     )
     entries = result.scalars().all()
+
+    # Verify the caller is referenced in at least one audit entry for this entity
+    if entries:
+        caller_involved = any(e.actor_agent_id == caller_id for e in entries)
+        if not caller_involved:
+            raise HTTPException(status_code=403, detail="Not authorized to view this audit trail")
+
     return [
         {
             "id": e.id,
@@ -378,10 +403,17 @@ async def _record_handoff_trust(db: AsyncSession, handoff: Handoff, status: str)
         if neg and isinstance(neg.intent, dict):
             domain = neg.intent.get("domain", "general")
 
-    # Calculate completion time
+    # Calculate completion time (handle mixed naive/aware datetimes from SQLite)
     completion_time_ms = None
     if handoff.completed_at and handoff.created_at:
-        delta = handoff.completed_at - handoff.created_at
+        completed = handoff.completed_at
+        created = handoff.created_at
+        # Normalize both to aware for safe subtraction
+        if completed.tzinfo is None:
+            completed = completed.replace(tzinfo=timezone.utc)
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        delta = completed - created
         completion_time_ms = delta.total_seconds() * 1000
 
     event_type = "success" if status == "completed" else "failure"

@@ -15,3 +15,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency that yields an async database session."""
     async with async_session() as session:
         yield session
+
+
+async def create_tables() -> None:
+    """Create all tables — used for SQLite dev mode only."""
+    from app.models import Base
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)

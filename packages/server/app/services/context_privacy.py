@@ -36,7 +36,7 @@ _sealed_store: dict[str, dict[str, Any]] = {}
 
 # --- Sealed References ---
 
-def seal_value(value: Any, context: str = "", ttl_minutes: int = 60) -> str:
+def seal_value(value: Any, context: str = "", ttl_minutes: int = 60, sealed_by: str | None = None) -> str:
     """Seal a PII value and return an opaque reference token.
 
     The value is stored server-side and never sent to agents.
@@ -60,6 +60,7 @@ def seal_value(value: Any, context: str = "", ttl_minutes: int = 60) -> str:
         "expires_at": expires_at.isoformat(),
         "access_count": 0,
         "max_accesses": 10,  # limit how many times it can be resolved
+        "sealed_by": sealed_by,
     }
 
     logger.info("value_sealed", context=context, token=token[:12])
@@ -94,14 +95,21 @@ def resolve_sealed(token: str) -> tuple[Any, bool]:
     return entry["value"], True
 
 
-def revoke_sealed(token: str) -> bool:
-    """Revoke a sealed reference — PII deleted immediately."""
+def revoke_sealed(token: str, caller_id: str | None = None) -> bool:
+    """Revoke a sealed reference — PII deleted immediately.
+
+    If caller_id is provided, only the agent who sealed the value can revoke it.
+    """
     if token.startswith("sealed:"):
         token = token[7:]
-    if token in _sealed_store:
-        del _sealed_store[token]
-        return True
-    return False
+    entry = _sealed_store.get(token)
+    if not entry:
+        return False
+    # Ownership check: if the entry was sealed by someone, only they can revoke
+    if caller_id and entry.get("sealed_by") and entry["sealed_by"] != caller_id:
+        return False
+    del _sealed_store[token]
+    return True
 
 
 # --- Context Layer Processing ---

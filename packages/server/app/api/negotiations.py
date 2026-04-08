@@ -40,6 +40,7 @@ from app.schemas.negotiation import (
     NegotiationRejectRequest,
     NegotiationResponse,
 )
+from app.core.auth import require_scope
 from app.api.deps import get_current_agent, get_agent_id
 
 logger = structlog.get_logger()
@@ -52,8 +53,11 @@ async def create_negotiation(
     req: NegotiationCreateRequest,
     db: AsyncSession = Depends(get_db),
     caller_id: uuid.UUID = Depends(get_agent_id),
+    claims: dict = Depends(get_current_agent),
 ) -> dict[str, Any]:
     """Create a new negotiation — the initiator declares intent and names a responder."""
+    require_scope(claims, "negotiate")
+
     # Verify responder exists and is active
     responder = await db.get(Agent, req.responder_id)
     if not responder or responder.status != "active":
@@ -102,10 +106,11 @@ async def create_negotiation(
 async def get_negotiation(
     negotiation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> dict[str, Any]:
-    """Get the current state of a negotiation."""
+    """Get the current state of a negotiation. Only participants can view."""
     negotiation = await _get_negotiation_or_404(db, negotiation_id)
+    _verify_participant(negotiation, caller_id)
     return negotiation_to_response(negotiation)
 
 
@@ -261,10 +266,11 @@ async def request_mediation(
 async def get_negotiation_history(
     negotiation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> dict[str, Any]:
-    """Get the full offer/counteroffer history for a negotiation."""
+    """Get the full offer/counteroffer history for a negotiation. Only participants."""
     negotiation = await _get_negotiation_or_404(db, negotiation_id)
+    _verify_participant(negotiation, caller_id)
     return {
         "negotiation_id": str(negotiation.id),
         "state": negotiation.state,

@@ -24,6 +24,9 @@ out/
 *.swo
 .vs/
 
+# AI tools
+.claude/
+
 # Environment
 .env
 .env.local

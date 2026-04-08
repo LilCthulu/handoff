@@ -80,6 +80,12 @@ def _load_from_config(app: FastAPI) -> list[str]:
         if not module_path:
             continue
 
+        # Validate module path format — must be a dotted Python path,
+        # not a filesystem path or anything that could import arbitrary code
+        if not all(part.isidentifier() for part in module_path.split(".")):
+            logger.warning("extension_invalid_module_path", module=module_path)
+            continue
+
         try:
             ext_module = importlib.import_module(module_path)
             if hasattr(ext_module, "register"):

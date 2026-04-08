@@ -60,7 +60,7 @@ async def seal(
     The delegating agent seals sensitive values before including them
     in the handoff context. The receiving agent gets tokens, not raw data.
     """
-    token = seal_value(req.value, context=req.context, ttl_minutes=req.ttl_minutes)
+    token = seal_value(req.value, context=req.context, ttl_minutes=req.ttl_minutes, sealed_by=str(caller_id))
     logger.info("pii_sealed", agent=str(caller_id), context=req.context)
     return {"token": token, "ttl_minutes": req.ttl_minutes}
 
@@ -115,9 +115,9 @@ async def revoke(
     The delegating agent can revoke references after the handoff
     completes, ensuring PII doesn't persist beyond its purpose.
     """
-    success = revoke_sealed(token)
+    success = revoke_sealed(token, caller_id=str(caller_id))
     if not success:
-        raise HTTPException(status_code=404, detail="Token not found")
+        raise HTTPException(status_code=404, detail="Token not found or not owned by you")
 
     logger.info("sealed_ref_revoked", agent=str(caller_id), token=token[:20])
     return {"revoked": True}

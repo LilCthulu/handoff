@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.database import get_db
 from app.models.handoff import Handoff
@@ -81,6 +82,7 @@ async def report_progress(
         "message": req.message,
         "updated_at": now.isoformat(),
     }
+    flag_modified(handoff, "context")
     handoff.updated_at = now
     await db.commit()
 
@@ -202,9 +204,14 @@ async def save_checkpoint(
 async def get_checkpoints(
     handoff_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> list[dict[str, Any]]:
-    """Get all checkpoints for a handoff."""
+    """Get all checkpoints for a handoff. Must be a participant."""
+    handoff = await _get_handoff(db, handoff_id)
+    if not handoff:
+        raise HTTPException(status_code=404, detail="Handoff not found")
+    if caller_id not in (handoff.from_agent_id, handoff.to_agent_id):
+        raise HTTPException(status_code=403, detail="Not a participant in this handoff")
     result = await db.execute(
         select(HandoffCheckpoint)
         .where(HandoffCheckpoint.handoff_id == handoff_id)
@@ -229,12 +236,14 @@ async def get_checkpoints(
 async def get_latest_progress(
     handoff_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> dict[str, Any]:
-    """Get the latest progress for a handoff — current phase, progress %, last checkpoint."""
+    """Get the latest progress for a handoff. Must be a participant."""
     handoff = await _get_handoff(db, handoff_id)
     if not handoff:
         raise HTTPException(status_code=404, detail="Handoff not found")
+    if caller_id not in (handoff.from_agent_id, handoff.to_agent_id):
+        raise HTTPException(status_code=403, detail="Not a participant in this handoff")
 
     # Progress from context
     progress = (handoff.context or {}).get("_progress", {})
@@ -251,17 +260,23 @@ async def get_latest_progress(
     # Stall detection
     stall_detected = False
     if handoff.status == "in_progress":
+        now = datetime.now(timezone.utc)
         last_update = progress.get("updated_at")
         if last_update:
             from datetime import datetime as dt
             last_dt = dt.fromisoformat(last_update)
-            elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            elapsed = (now - last_dt).total_seconds()
             # Stall if no update in 5 minutes
             stall_detected = elapsed > 300
         else:
             # No progress ever reported — check time since handoff started
             if handoff.updated_at:
-                elapsed = (datetime.now(timezone.utc) - handoff.updated_at).total_seconds()
+                updated = handoff.updated_at
+                if updated.tzinfo is None:
+                    updated = updated.replace(tzinfo=timezone.utc)
+                elapsed = (now - updated).total_seconds()
                 stall_detected = elapsed > 300
 
     return {
@@ -389,7 +404,8 @@ async def handle_ws_progress(agent_id: uuid.UUID, data: dict[str, Any]) -> None:
     progress = data.get("progress", 0.0)
     message = data.get("message")
 
-    async with __import__("app.database", fromlist=["async_session"]).async_session() as db:
+    from app.database import async_session as _async_session
+    async with _async_session() as db:
         handoff = await _get_handoff(db, handoff_id)
         if not handoff or agent_id != handoff.to_agent_id:
             return
@@ -406,6 +422,7 @@ async def handle_ws_progress(agent_id: uuid.UUID, data: dict[str, Any]) -> None:
             "message": message,
             "updated_at": now.isoformat(),
         }
+        flag_modified(handoff, "context")
         handoff.updated_at = now
         await db.commit()
 

@@ -193,9 +193,16 @@ async def acknowledge_delivery(
 async def get_delivery_receipt_by_handoff(
     handoff_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> dict[str, Any]:
-    """Get the delivery receipt for a handoff."""
+    """Get the delivery receipt for a handoff. Must be a participant."""
+    # Verify caller is a participant in the handoff
+    handoff = await db.get(Handoff, handoff_id)
+    if not handoff:
+        raise HTTPException(status_code=404, detail="Handoff not found")
+    if caller_id not in (handoff.from_agent_id, handoff.to_agent_id):
+        raise HTTPException(status_code=403, detail="Not a participant in this handoff")
+
     result = await db.execute(
         select(DeliveryReceipt).where(DeliveryReceipt.handoff_id == handoff_id)
     )

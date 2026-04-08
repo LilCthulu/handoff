@@ -4,7 +4,19 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+def _validate_json_depth(obj: Any, max_depth: int = 10, _current: int = 0) -> None:
+    """Reject deeply nested JSON to prevent stack overflow / memory abuse."""
+    if _current > max_depth:
+        raise ValueError(f"JSON nesting exceeds maximum depth of {max_depth}")
+    if isinstance(obj, dict):
+        for v in obj.values():
+            _validate_json_depth(v, max_depth, _current + 1)
+    elif isinstance(obj, list):
+        for item in obj:
+            _validate_json_depth(item, max_depth, _current + 1)
 
 
 class HandoffCreateRequest(BaseModel):
@@ -17,6 +29,15 @@ class HandoffCreateRequest(BaseModel):
     chain_position: int = 0
     parent_handoff_id: uuid.UUID | None = None
     timeout_minutes: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_context_size(self) -> "HandoffCreateRequest":
+        import json
+        raw = json.dumps(self.context, default=str)
+        if len(raw) > 512_000:  # 512 KB max context payload
+            raise ValueError("Context payload exceeds 512 KB limit")
+        _validate_json_depth(self.context)
+        return self
 
 
 class HandoffStatusUpdate(BaseModel):

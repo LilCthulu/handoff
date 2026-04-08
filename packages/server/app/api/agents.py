@@ -86,6 +86,8 @@ async def register_agent(
 # In-memory challenge store with expiration (production: use Redis)
 _pending_challenges: dict[str, tuple[uuid.UUID, datetime]] = {}
 _CHALLENGE_TTL = timedelta(minutes=2)
+_MAX_PENDING_CHALLENGES_PER_AGENT = 5
+_MAX_PENDING_CHALLENGES_TOTAL = 10_000
 
 
 @router.post("/agents/challenge")
@@ -102,14 +104,22 @@ async def request_challenge(
     if agent.status != "active":
         raise HTTPException(status_code=403, detail=f"Agent is {agent.status}")
 
-    challenge = secrets.token_urlsafe(32)
-    _pending_challenges[challenge] = (agent_id, datetime.now(timezone.utc) + _CHALLENGE_TTL)
-
-    # Purge expired challenges
+    # Purge expired challenges first
     now = datetime.now(timezone.utc)
     expired = [c for c, (_, exp) in _pending_challenges.items() if now > exp]
     for c in expired:
         del _pending_challenges[c]
+
+    # Enforce limits to prevent memory exhaustion
+    if len(_pending_challenges) >= _MAX_PENDING_CHALLENGES_TOTAL:
+        raise HTTPException(status_code=503, detail="Too many pending challenges — try again shortly")
+
+    agent_challenge_count = sum(1 for _, (aid, _) in _pending_challenges.items() if aid == agent_id)
+    if agent_challenge_count >= _MAX_PENDING_CHALLENGES_PER_AGENT:
+        raise HTTPException(status_code=429, detail="Too many pending challenges for this agent")
+
+    challenge = secrets.token_urlsafe(32)
+    _pending_challenges[challenge] = (agent_id, now + _CHALLENGE_TTL)
 
     return {"challenge": challenge}
 

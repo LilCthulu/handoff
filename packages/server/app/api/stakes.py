@@ -121,9 +121,11 @@ async def get_agent_stakes(
     agent_id: uuid.UUID,
     status: str | None = None,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> list[dict[str, Any]]:
-    """List all stakes for an agent, optionally filtered by status."""
+    """List all stakes for an agent. Only the agent themselves can view."""
+    if caller_id != agent_id:
+        raise HTTPException(status_code=403, detail="Can only view your own stakes")
     query = select(AgentStake).where(AgentStake.agent_id == agent_id)
     if status:
         query = query.where(AgentStake.status == status)
@@ -154,9 +156,11 @@ async def get_handoff_stake(
 async def get_agent_balance(
     agent_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> dict[str, Any]:
-    """Get an agent's credit balance."""
+    """Get an agent's credit balance. Only the agent themselves can view."""
+    if caller_id != agent_id:
+        raise HTTPException(status_code=403, detail="Can only view your own balance")
     balance = await _get_or_create_balance(db, agent_id)
     return {
         "agent_id": str(balance.agent_id),
