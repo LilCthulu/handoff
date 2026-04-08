@@ -48,6 +48,7 @@ PUBLIC_PREFIXES: tuple[str, ...] = (
     "/api/v1/accounts/",
     "/api/v1/billing/",
     "/api/v1/dashboard/",
+    "/api/v1/oauth/",
     "/ws/",
 )
 
