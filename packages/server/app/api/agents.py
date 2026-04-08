@@ -38,6 +38,19 @@ logger = structlog.get_logger()
 
 router = APIRouter(prefix="/api/v1", tags=["agents"])
 
+# Registration hooks: extensions can register callbacks to run after agent creation.
+# Each callback receives (agent: Agent, request: AgentRegisterRequest, db: AsyncSession).
+_registration_hooks: list[Any] = []
+
+
+def register_hook(hook: Any) -> None:
+    """Register a callback that runs during agent registration.
+
+    The hook receives (agent, request, db) and can modify the agent
+    (e.g., set org_id from an API key). Used by the cloud extension.
+    """
+    _registration_hooks.append(hook)
+
 
 @router.post("/agents/register", response_model=AgentRegisteredResponse, status_code=201)
 async def register_agent(
@@ -56,6 +69,10 @@ async def register_agent(
     )
     db.add(agent)
     await db.flush()
+
+    # Run registration hooks (e.g., API key → org linking)
+    for hook in _registration_hooks:
+        await hook(agent, req, db)
 
     # Audit
     audit = AuditLog(

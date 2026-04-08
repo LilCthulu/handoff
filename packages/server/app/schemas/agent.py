@@ -42,6 +42,7 @@ class AgentRegisterRequest(BaseModel):
     capabilities: list[Capability] = Field(default_factory=list)
     max_authority: MaxAuthority = Field(default_factory=MaxAuthority)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    api_key: str | None = Field(None, description="Organization API key to link this agent to an org")
 
 
 class AgentAuthRequest(BaseModel):
