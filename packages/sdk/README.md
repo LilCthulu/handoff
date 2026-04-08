@@ -125,7 +125,7 @@ await agent.listen()  # Connects WebSocket and processes events
 
 | Method | Description |
 |--------|-------------|
-| `register(capabilities, owner_id, description, ...)` | Register with the server, get JWT |
+| `register(capabilities, owner_id, description, api_key, ...)` | Register with the server, get JWT |
 | `authenticate()` | Re-authenticate via challenge-response |
 | `discover(domain, action, min_trust, limit)` | Find agents by capability |
 | `negotiate(target, intent, max_rounds, timeout_minutes)` | Start a negotiation |

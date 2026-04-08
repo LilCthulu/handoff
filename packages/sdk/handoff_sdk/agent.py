@@ -74,6 +74,7 @@ class HandoffAgent:
         max_authority: dict[str, Any] | None = None,
         description: str | None = None,
         metadata: dict[str, Any] | None = None,
+        api_key: str | None = None,
     ) -> AgentProfile:
         """Register this agent with the Handoff server.
 
@@ -99,6 +100,8 @@ class HandoffAgent:
         }
         if description:
             data["description"] = description
+        if api_key:
+            data["api_key"] = api_key
 
         result = await self._client.post("/api/v1/agents/register", data, auth=False)
 
