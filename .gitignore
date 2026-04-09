@@ -30,8 +30,8 @@ CLAUDE.md
 
 # Environment
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
 
 # Database
 *.db
@@ -48,6 +48,12 @@ htmlcov/
 # Docker
 postgres_data/
 redis_data/
+
+# TLS certs and temp files
+nginx/*.crt
+nginx/*.key
+cookies.txt
+*.dockerignore
 
 # Internal docs — not for public repo
 HANDOFF_SPEC.md

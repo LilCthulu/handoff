@@ -14,7 +14,7 @@ can participate if it declares its capabilities in a standard format.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Float, Index, Integer, String, Text
+from sqlalchemy import DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base
@@ -61,8 +61,8 @@ class CapabilityContract(Base):
     examples: Mapped[dict] = mapped_column(JSONType, nullable=False, default=list)
 
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
-    updated_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     __table_args__ = (
         Index("idx_cap_agent_domain_action", "agent_id", "domain", "action"),

@@ -8,7 +8,7 @@ trust lets the network make better delegation decisions.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Float, Index, Integer, String
+from sqlalchemy import DateTime, Float, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base
@@ -32,7 +32,7 @@ class TrustScore(Base):
     failed_handoffs: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_handoffs: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     avg_completion_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
-    last_updated: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
+    last_updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     __table_args__ = (
         Index("idx_trust_agent_domain", "agent_id", "domain", unique=True),
@@ -61,7 +61,7 @@ class TrustEvent(Base):
     score_after: Mapped[float] = mapped_column(Float, nullable=False)
     completion_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     details: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     __table_args__ = (
         Index("idx_trust_events_agent", "agent_id"),

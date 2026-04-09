@@ -12,7 +12,7 @@ issuer, subject, claims, proof (signature), expiration.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Float, Index, String, Text
+from sqlalchemy import DateTime, Boolean, Float, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base
@@ -71,13 +71,13 @@ class ThirdPartyCredential(Base):
     verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Validity
-    issued_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
-    expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revocation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     @property
     def is_valid(self) -> bool:
