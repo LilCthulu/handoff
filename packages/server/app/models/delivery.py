@@ -10,7 +10,7 @@ No disputes. No ambiguity. Cryptographic accountability.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Index, String, Text
+from sqlalchemy import DateTime, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base
@@ -40,7 +40,7 @@ class DeliveryReceipt(Base):
     delivery_key_fingerprint: Mapped[str] = mapped_column(String(100), nullable=False)
     result_hash: Mapped[str] = mapped_column(String(100), nullable=False)  # sha256:<hex> of canonical result
     delivery_signature: Mapped[str] = mapped_column(Text, nullable=False)  # base64 Ed25519
-    delivered_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
+    delivered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     # Proof of work (optional — external evidence)
     proof: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
@@ -56,13 +56,13 @@ class DeliveryReceipt(Base):
     accepted: Mapped[bool | None] = mapped_column(nullable=True)
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     acknowledgment_signature: Mapped[str | None] = mapped_column(Text, nullable=True)
-    acknowledged_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Verification
     delivery_verified: Mapped[bool] = mapped_column(nullable=False, default=False)
     acknowledgment_verified: Mapped[bool] = mapped_column(nullable=False, default=False)
 
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     __table_args__ = (
         Index("idx_receipt_handoff", "handoff_id", unique=True),

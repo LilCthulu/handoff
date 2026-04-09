@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models import Base
@@ -32,13 +32,13 @@ class Negotiation(Base):
     current_offer: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     offer_history: Mapped[dict] = mapped_column(JSONType, nullable=False, default=list)
     agreement: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
-    timeout_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    timeout_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     max_rounds: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
     current_round: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     metadata_: Mapped[dict] = mapped_column("metadata", JSONType, nullable=False, default=dict)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
-    updated_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
-    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     initiator = relationship("Agent", foreign_keys=[initiator_id], lazy="selectin")

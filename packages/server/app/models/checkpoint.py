@@ -11,7 +11,7 @@ you left off."
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Index, Integer, String, Text
+from sqlalchemy import DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base
@@ -33,7 +33,7 @@ class HandoffCheckpoint(Base):
     phase: Mapped[str] = mapped_column(String(255), nullable=False)  # human-readable phase name
     state: Mapped[dict] = mapped_column(JSONType, nullable=False)  # serialized checkpoint state
     agent_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)  # who created the checkpoint
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     __table_args__ = (
         Index("idx_checkpoint_handoff", "handoff_id"),

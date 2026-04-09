@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Float, Index, String, Text
+from sqlalchemy import DateTime, Float, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base
@@ -29,9 +29,9 @@ class Agent(Base):
     max_authority: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="active")
     metadata_: Mapped[dict] = mapped_column("metadata", JSONType, nullable=False, default=dict)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
-    updated_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
-    last_seen_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # org_id for multi-tenant scoping (set by cloud extension)
     org_id: Mapped[str | None] = mapped_column(String(255), nullable=True)

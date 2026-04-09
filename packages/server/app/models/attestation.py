@@ -12,7 +12,7 @@ and "47 other agents have cryptographically proven it's trustworthy."
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Float, Index, String, Text
+from sqlalchemy import DateTime, Float, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base
@@ -67,7 +67,7 @@ class Attestation(Base):
     # Verification status
     verified: Mapped[bool] = mapped_column(nullable=False, default=False)  # server verified the signature
 
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     __table_args__ = (
         Index("idx_attestation_subject", "subject_id"),
@@ -117,8 +117,8 @@ class CapabilityChallenge(Base):
     # Who issued the challenge
     issued_by: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)  # null = server-issued
 
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
-    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         Index("idx_challenge_agent", "agent_id"),

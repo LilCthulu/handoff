@@ -13,7 +13,7 @@ balance, creating natural selection pressure.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Float, Index, String, Text
+from sqlalchemy import DateTime, Float, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base
@@ -55,7 +55,7 @@ class AgentStake(Base):
 
     # Resolution details
     resolution_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    resolved_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Metadata
     conditions: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
@@ -65,7 +65,7 @@ class AgentStake(Base):
     #   "sla_requirements": true
     # }
 
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     __table_args__ = (
         Index("idx_stake_agent", "agent_id"),
@@ -94,7 +94,7 @@ class AgentBalance(Base):
     total_earned: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)  # lifetime earned back
     total_forfeited: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)  # lifetime lost
 
-    updated_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     __table_args__ = (
         Index("idx_balance_agent", "agent_id", unique=True),
