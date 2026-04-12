@@ -68,7 +68,7 @@ class HandoffSession:
 
     async def wait(self, timeout: float | None = None) -> HandoffResult:
         """Wait for the handoff to complete."""
-        if timeout:
+        if timeout is not None:
             await asyncio.wait_for(self._resolved.wait(), timeout=timeout)
         else:
             await self._resolved.wait()

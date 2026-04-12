@@ -17,7 +17,7 @@ class Capability(BaseModel):
     """A single capability declaration."""
 
     domain: str = Field(..., min_length=1, description="Capability domain")
-    actions: list[str] = Field(..., min_items=1, description="Actions in this domain")
+    actions: list[str] = Field(..., min_length=1, description="Actions in this domain")
     constraints: dict[str, Any] = Field(default_factory=dict)
 
 

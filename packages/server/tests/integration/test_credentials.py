@@ -60,8 +60,8 @@ class TestCredentials:
             json=payload,
             headers=agent["headers"],
         )
-        assert resp.status_code == 201
-        assert resp.json()["verified"] is False
+        assert resp.status_code == 400
+        assert "invalid" in resp.json()["detail"].lower()
 
     async def test_submit_invalid_credential_type(self, client, agent_factory):
         agent = await agent_factory.create()

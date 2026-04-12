@@ -84,7 +84,7 @@ class NegotiationSession:
         Returns:
             NegotiationResult with final state and agreement.
         """
-        if timeout:
+        if timeout is not None:
             await asyncio.wait_for(self._resolved.wait(), timeout=timeout)
         else:
             await self._resolved.wait()

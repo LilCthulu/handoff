@@ -254,6 +254,7 @@ async def get_attestation(
 async def verify_attestation(
     attestation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    _claims: dict = Depends(get_current_agent),
 ) -> dict[str, Any]:
     """Re-verify an attestation's signature against the attester's current public key.
 

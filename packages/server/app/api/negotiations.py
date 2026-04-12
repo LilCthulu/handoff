@@ -58,6 +58,10 @@ async def create_negotiation(
     """Create a new negotiation — the initiator declares intent and names a responder."""
     require_scope(claims, "negotiate")
 
+    # Prevent self-negotiation
+    if caller_id == req.responder_id:
+        raise HTTPException(status_code=400, detail="Cannot negotiate with yourself")
+
     # Verify responder exists and is active
     responder = await db.get(Agent, req.responder_id)
     if not responder or responder.status != "active":
@@ -120,8 +124,10 @@ async def submit_negotiation_offer(
     req: NegotiationOfferRequest,
     db: AsyncSession = Depends(get_db),
     caller_id: uuid.UUID = Depends(get_agent_id),
+    claims: dict = Depends(get_current_agent),
 ) -> dict[str, Any]:
     """Submit an offer or counteroffer. Both sides take turns."""
+    require_scope(claims, "negotiate")
     negotiation = await _get_negotiation_or_404(db, negotiation_id)
     _verify_participant(negotiation, caller_id)
 
@@ -167,10 +173,18 @@ async def accept_negotiation(
     negotiation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     caller_id: uuid.UUID = Depends(get_agent_id),
+    claims: dict = Depends(get_current_agent),
 ) -> dict[str, Any]:
     """Accept the current offer — the deal is struck."""
+    require_scope(claims, "negotiate")
     negotiation = await _get_negotiation_or_404(db, negotiation_id)
     _verify_participant(negotiation, caller_id)
+
+    # Prevent accepting your own offer (the last offer must be from the other party)
+    if negotiation.offer_history:
+        last_offer = negotiation.offer_history[-1]
+        if last_offer.get("from_agent_id") == str(caller_id):
+            raise HTTPException(status_code=400, detail="Cannot accept your own offer")
 
     try:
         neg_dict = negotiation_to_dict(negotiation)
@@ -200,8 +214,10 @@ async def reject_negotiation_endpoint(
     req: NegotiationRejectRequest | None = None,
     db: AsyncSession = Depends(get_db),
     caller_id: uuid.UUID = Depends(get_agent_id),
+    claims: dict = Depends(get_current_agent),
 ) -> dict[str, Any]:
     """Reject a negotiation — walk away from the table."""
+    require_scope(claims, "negotiate")
     negotiation = await _get_negotiation_or_404(db, negotiation_id)
     _verify_participant(negotiation, caller_id)
 
@@ -233,8 +249,10 @@ async def request_mediation(
     negotiation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     caller_id: uuid.UUID = Depends(get_agent_id),
+    claims: dict = Depends(get_current_agent),
 ) -> dict[str, Any]:
     """Request mediation for a stalled negotiation."""
+    require_scope(claims, "negotiate")
     negotiation = await _get_negotiation_or_404(db, negotiation_id)
     _verify_participant(negotiation, caller_id)
 

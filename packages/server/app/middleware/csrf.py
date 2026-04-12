@@ -94,11 +94,12 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         if session_cookie and not csrf_cookie:
             token = secrets.token_urlsafe(CSRF_TOKEN_LENGTH)
+            from app.config import settings
             response.set_cookie(
                 key=CSRF_COOKIE,
                 value=token,
                 httponly=False,  # Must be readable by JavaScript
-                secure=False,   # Set to True in production behind HTTPS
+                secure=settings.ENVIRONMENT != "development",
                 samesite="lax",
                 path="/",
             )

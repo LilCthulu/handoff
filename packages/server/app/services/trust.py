@@ -176,9 +176,6 @@ async def _update_global_trust(db: AsyncSession, agent_id: uuid.UUID) -> None:
 
     global_score = _compute_global(scores)
 
-    await db.execute(
-        select(Agent).where(Agent.id == agent_id)
-    )
     result = await db.execute(select(Agent).where(Agent.id == agent_id))
     agent = result.scalar_one_or_none()
     if agent:

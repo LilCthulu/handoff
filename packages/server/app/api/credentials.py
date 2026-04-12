@@ -83,7 +83,7 @@ async def submit_credential(
     if not (0.0 < req.weight <= 5.0):
         raise HTTPException(status_code=400, detail="Weight must be between 0 and 5")
 
-    # Verify signature (Ed25519)
+    # Verify signature (Ed25519) — reject invalid signatures outright
     verified = False
     try:
         from nacl.signing import VerifyKey
@@ -97,11 +97,17 @@ async def submit_credential(
         verify_key.verify(canonical.encode(), base64.b64decode(req.signature))
         verified = True
     except ImportError:
-        logger.warning("nacl_not_installed", detail="PyNaCl not installed, skipping signature verification")
-        verified = False
+        logger.warning("nacl_not_installed", detail="PyNaCl not installed, cannot verify credential")
+        raise HTTPException(
+            status_code=503,
+            detail="Signature verification is unavailable — PyNaCl not installed",
+        )
     except Exception as e:
         logger.warning("credential_signature_invalid", error=str(e))
-        verified = False
+        raise HTTPException(
+            status_code=400,
+            detail="Credential signature is invalid — claims must be signed with a valid Ed25519 key",
+        )
 
     credential = ThirdPartyCredential(
         subject_id=req.subject_id,
@@ -229,9 +235,9 @@ async def revoke_credential(
     credential_id: uuid.UUID,
     req: RevokeCredentialRequest,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> dict[str, Any]:
-    """Revoke a credential. Can be called by the issuer."""
+    """Revoke a credential. Can only be called by the issuer."""
     result = await db.execute(
         select(ThirdPartyCredential).where(ThirdPartyCredential.id == credential_id)
     )
@@ -240,6 +246,10 @@ async def revoke_credential(
         raise HTTPException(status_code=404, detail="Credential not found")
     if credential.revoked:
         raise HTTPException(status_code=400, detail="Credential already revoked")
+
+    # Only the subject agent or the original issuer can revoke
+    if caller_id != credential.subject_id and str(caller_id) != credential.issuer_id:
+        raise HTTPException(status_code=403, detail="Only the subject agent or issuer can revoke this credential")
 
     credential.revoked = True
     credential.revoked_at = datetime.now(timezone.utc)

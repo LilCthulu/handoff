@@ -27,7 +27,7 @@ from app.schemas.handoff import (
     HandoffResultRequest,
     HandoffStatusUpdate,
 )
-from app.core.auth import require_scope
+from app.core.auth import require_scope, check_authority
 from app.api.deps import get_current_agent, get_agent_id
 from app.services.contract_enforcement import validate_handoff_input, validate_handoff_result
 from app.services.context_privacy import minimize_context
@@ -46,6 +46,11 @@ async def create_handoff(
 ) -> dict[str, Any]:
     """Initiate a handoff — transfer work context to another agent."""
     require_scope(claims, "handoff")
+    check_authority(claims, domain=req.context.get("domain") if req.context else None)
+
+    # Prevent self-handoff (trust inflation attack)
+    if caller_id == req.to_agent_id:
+        raise HTTPException(status_code=400, detail="Cannot create a handoff to yourself")
 
     # Verify target agent
     to_agent = await db.get(Agent, req.to_agent_id)
@@ -156,8 +161,10 @@ async def update_handoff_status(
     req: HandoffStatusUpdate,
     db: AsyncSession = Depends(get_db),
     caller_id: uuid.UUID = Depends(get_agent_id),
+    claims: dict = Depends(get_current_agent),
 ) -> dict[str, Any]:
     """Update handoff status. The receiving agent reports progress."""
+    require_scope(claims, "handoff")
     handoff = await _get_handoff_or_404(db, handoff_id)
 
     if caller_id != handoff.to_agent_id:
@@ -226,8 +233,10 @@ async def submit_handoff_result(
     req: HandoffResultRequest,
     db: AsyncSession = Depends(get_db),
     caller_id: uuid.UUID = Depends(get_agent_id),
+    claims: dict = Depends(get_current_agent),
 ) -> dict[str, Any]:
     """Submit the result of a completed handoff."""
+    require_scope(claims, "handoff")
     handoff = await _get_handoff_or_404(db, handoff_id)
 
     if caller_id != handoff.to_agent_id:
@@ -250,7 +259,8 @@ async def submit_handoff_result(
     handoff.updated_at = datetime.now(timezone.utc)
     handoff.completed_at = datetime.now(timezone.utc)
 
-    # Record trust event (with SLA context)
+    # Record trust event — safe from double-counting because status is now "completed"
+    # and update_handoff_status rejects transitions from "completed" state
     await _record_handoff_trust(db, handoff, "completed")
 
     audit_details: dict[str, Any] = {"result_keys": list(req.result.keys())}
@@ -356,10 +366,10 @@ async def get_audit_trail(
     entries = result.scalars().all()
 
     # Verify the caller is referenced in at least one audit entry for this entity
-    if entries:
-        caller_involved = any(e.actor_agent_id == caller_id for e in entries)
-        if not caller_involved:
-            raise HTTPException(status_code=403, detail="Not authorized to view this audit trail")
+    # (also reject if no entries exist — don't leak entity existence to non-participants)
+    caller_involved = any(e.actor_agent_id == caller_id for e in entries)
+    if not caller_involved:
+        raise HTTPException(status_code=403, detail="Not authorized to view this audit trail")
 
     return [
         {

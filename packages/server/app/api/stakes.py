@@ -11,13 +11,14 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.handoff import Handoff
 from app.models.stake import AgentStake, AgentBalance
 from app.models.audit import AuditLog
+from app.core.auth import check_authority, require_scope
 from app.api.deps import get_current_agent, get_agent_id
 
 logger = structlog.get_logger()
@@ -32,14 +33,15 @@ class PostStakeRequest(BaseModel):
     amount: float
     conditions: dict | None = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "handoff_id": "550e8400-e29b-41d4-a716-446655440000",
                 "amount": 10.0,
                 "conditions": {"min_quality_score": 0.8, "max_latency_ms": 30000},
             }
         }
+    }
 
 
 # --- Endpoints ---
@@ -49,8 +51,12 @@ async def post_stake(
     req: PostStakeRequest,
     db: AsyncSession = Depends(get_db),
     caller_id: uuid.UUID = Depends(get_agent_id),
+    claims: dict = Depends(get_current_agent),
 ) -> dict[str, Any]:
     """Post a stake for a handoff. Locks credits from agent's available balance."""
+    require_scope(claims, "handoff")
+    check_authority(claims, spend=req.amount)
+
     if req.amount <= 0:
         raise HTTPException(status_code=400, detail="Stake amount must be positive")
 
@@ -70,8 +76,8 @@ async def post_stake(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="A stake already exists for this handoff")
 
-    # Get or create agent balance
-    balance = await _get_or_create_balance(db, caller_id)
+    # Get or create agent balance with row-level locking to prevent race conditions
+    balance = await _get_or_create_balance(db, caller_id, lock=True)
 
     if balance.available < req.amount:
         raise HTTPException(
@@ -140,9 +146,16 @@ async def get_agent_stakes(
 async def get_handoff_stake(
     handoff_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> dict[str, Any]:
-    """Get the stake for a specific handoff."""
+    """Get the stake for a specific handoff. Only handoff participants can view."""
+    # Verify caller is a participant in the handoff
+    handoff = await db.get(Handoff, handoff_id)
+    if not handoff:
+        raise HTTPException(status_code=404, detail="Handoff not found")
+    if caller_id not in (handoff.from_agent_id, handoff.to_agent_id):
+        raise HTTPException(status_code=403, detail="Not a participant in this handoff")
+
     result = await db.execute(
         select(AgentStake).where(AgentStake.handoff_id == handoff_id)
     )
@@ -190,11 +203,10 @@ async def release_stake(
     if not handoff or caller_id != handoff.from_agent_id:
         raise HTTPException(status_code=403, detail="Only the delegating agent can release a stake")
 
-    # Release funds
-    balance = await _get_or_create_balance(db, stake.agent_id)
+    # Release funds (return to available, don't count as earned — it's the agent's own money)
+    balance = await _get_or_create_balance(db, stake.agent_id, lock=True)
     balance.staked -= stake.amount
     balance.available += stake.amount
-    balance.total_earned += stake.amount
     balance.updated_at = datetime.now(timezone.utc)
 
     stake.status = "released"
@@ -264,10 +276,14 @@ async def forfeit_stake(
 async def get_stake(
     stake_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> dict[str, Any]:
-    """Get a single stake by ID."""
+    """Get a single stake by ID. Only handoff participants can view."""
     stake = await _get_stake_or_404(db, stake_id)
+    # Verify caller is a participant in the related handoff
+    handoff = await db.get(Handoff, stake.handoff_id)
+    if not handoff or caller_id not in (handoff.from_agent_id, handoff.to_agent_id):
+        raise HTTPException(status_code=403, detail="Not a participant in this handoff")
     return _stake_to_response(stake)
 
 
@@ -281,11 +297,17 @@ async def _get_stake_or_404(db: AsyncSession, stake_id: uuid.UUID) -> AgentStake
     return stake
 
 
-async def _get_or_create_balance(db: AsyncSession, agent_id: uuid.UUID) -> AgentBalance:
-    """Get or create an agent's balance record."""
-    result = await db.execute(
-        select(AgentBalance).where(AgentBalance.agent_id == agent_id)
-    )
+async def _get_or_create_balance(db: AsyncSession, agent_id: uuid.UUID, lock: bool = False) -> AgentBalance:
+    """Get or create an agent's balance record.
+
+    Args:
+        lock: If True, use SELECT FOR UPDATE to prevent race conditions
+              on concurrent balance modifications.
+    """
+    query = select(AgentBalance).where(AgentBalance.agent_id == agent_id)
+    if lock:
+        query = query.with_for_update()
+    result = await db.execute(query)
     balance = result.scalar_one_or_none()
     if not balance:
         balance = AgentBalance(agent_id=agent_id)
