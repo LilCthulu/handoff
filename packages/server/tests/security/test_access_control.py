@@ -185,12 +185,13 @@ class TestAuditTrailAccess:
 
     async def test_valid_entity_types_accepted(self, client, agent_factory):
         agent = await agent_factory.create()
+        # Querying audit trail for an entity the caller isn't involved in
+        # should return 403 (not leak empty list to non-participants)
         resp = await client.get(
             f"/api/v1/audit/agent/{uuid.uuid4()}",
             headers=agent["headers"],
         )
-        assert resp.status_code == 200
-        assert resp.json() == []
+        assert resp.status_code == 403
 
 
 class TestInputValidation:

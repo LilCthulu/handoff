@@ -4,6 +4,7 @@ Intents are the spark that starts every negotiation.
 This builder makes them easy to construct and hard to get wrong.
 """
 
+import copy
 import uuid
 from typing import Any, Self
 
@@ -110,8 +111,8 @@ class Intent:
     # --- Output ---
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the intent to a dictionary."""
-        return dict(self._data)
+        """Serialize the intent to a deep-copied dictionary."""
+        return copy.deepcopy(self._data)
 
     def __repr__(self) -> str:
         return f"Intent({self._data['type']} {self._data['domain']}/{self._data['action']})"

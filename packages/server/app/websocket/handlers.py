@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import AuthError, decode_token
+from app.core.auth import AuthError, decode_token, require_scope
 from app.core.negotiation_engine import (
     NegotiationError,
     NegotiationState,
@@ -32,6 +32,9 @@ from app.models.negotiation import Negotiation
 from app.websocket.manager import manager
 
 logger = structlog.get_logger()
+
+# Per-connection claims cache for scope enforcement
+_ws_claims: dict[uuid.UUID, dict] = {}
 
 router = APIRouter()
 
@@ -65,6 +68,27 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
     except (AuthError, KeyError, ValueError) as e:
         await websocket.close(code=4001, reason=f"Authentication failed: {e}")
         return
+
+    # Verify agent is still active (REST middleware does this, WS must too)
+    try:
+        async with async_session() as db:
+            from app.models.agent import Agent
+            agent_result = await db.execute(select(Agent.status).where(Agent.id == agent_id))
+            agent_row = agent_result.one_or_none()
+            if agent_row is None:
+                await websocket.close(code=4001, reason="Agent not found")
+                return
+            agent_status = agent_row[0]
+            if agent_status in ("revoked", "suspended"):
+                await websocket.close(code=4003, reason=f"Agent is {agent_status}")
+                return
+    except Exception:
+        logger.exception("ws_auth_db_check_failed", agent_id=str(agent_id))
+        await websocket.close(code=4011, reason="Authentication service unavailable")
+        return
+
+    # Store claims for scope checking in handlers
+    _ws_claims[agent_id] = claims
 
     conn = await manager.connect(agent_id, websocket)
 
@@ -102,6 +126,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
     except Exception:
         logger.exception("ws_unexpected_error", agent_id=str(agent_id))
     finally:
+        _ws_claims.pop(agent_id, None)
         await manager.disconnect(agent_id)
 
 
@@ -161,6 +186,17 @@ def _handle_room_leave(agent_id: uuid.UUID, data: dict[str, Any]) -> None:
 
 async def _handle_negotiation(agent_id: uuid.UUID, msg_type: str, data: dict[str, Any]) -> None:
     """Route negotiation messages to the appropriate handler."""
+    # Enforce negotiate scope on WebSocket actions (same as REST)
+    claims = _ws_claims.get(agent_id, {})
+    try:
+        require_scope(claims, "negotiate")
+    except AuthError as e:
+        await manager.send_to_agent(agent_id, {
+            "type": "error",
+            "detail": f"Insufficient scope: {e.detail}",
+        })
+        return
+
     negotiation_id_str = data.get("negotiation_id")
     if not negotiation_id_str:
         await manager.send_to_agent(agent_id, {

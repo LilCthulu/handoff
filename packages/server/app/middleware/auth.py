@@ -45,17 +45,8 @@ PUBLIC_PREFIXES: tuple[str, ...] = (
     "/api/v1/agents/challenge",
     "/api/v1/agents/authenticate",
     "/api/v1/attestations/agent/",
-    "/api/v1/accounts/",
-    "/api/v1/billing/",
-    "/api/v1/dashboard/",
-    "/api/v1/oauth/",
+    "/api/v1/attestations/summary/",
     "/ws/",
-)
-
-# Exact path suffix patterns for public GET/POST endpoints
-# These allow specific operations without auth (e.g., signature verification)
-PUBLIC_SUFFIX_PATTERNS: tuple[str, ...] = (
-    "/verify",           # attestation and delivery verification endpoints
 )
 
 
@@ -78,10 +69,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         # Skip auth for public paths
         if path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES):
-            return await call_next(request)
-
-        # Skip auth for specific public suffix patterns (e.g., /verify endpoints)
-        if any(path.endswith(suffix) for suffix in PUBLIC_SUFFIX_PATTERNS):
             return await call_next(request)
 
         # Extract token

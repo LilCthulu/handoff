@@ -55,7 +55,8 @@ def load_or_generate_keys(key_path: str | Path | None = None) -> tuple[str, str]
     # Save private key
     key_path.parent.mkdir(parents=True, exist_ok=True)
     key_path.write_text(private_b64)
-    os.chmod(str(key_path), 0o600)
+    if os.name != "nt":
+        os.chmod(str(key_path), 0o600)
 
     return private_b64, public_b64
 

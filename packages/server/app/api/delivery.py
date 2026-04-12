@@ -95,8 +95,13 @@ async def submit_delivery_receipt(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    # Verify the delivery signature
+    # Verify the delivery signature — reject if invalid
     verified = _verify_ed25519(req.result_hash.encode(), req.signature, agent.public_key)
+    if not verified:
+        raise HTTPException(
+            status_code=400,
+            detail="Delivery signature is invalid — result hash must be signed with your Ed25519 key",
+        )
 
     fingerprint = public_key_fingerprint(agent.public_key)
 
@@ -216,15 +221,21 @@ async def get_delivery_receipt_by_handoff(
 async def get_delivery_receipt(
     receipt_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_agent),
+    caller_id: uuid.UUID = Depends(get_agent_id),
 ) -> dict[str, Any]:
-    """Get a delivery receipt by ID."""
+    """Get a delivery receipt by ID. Must be a participant in the related handoff."""
     result = await db.execute(
         select(DeliveryReceipt).where(DeliveryReceipt.id == receipt_id)
     )
     receipt = result.scalar_one_or_none()
     if not receipt:
         raise HTTPException(status_code=404, detail="Delivery receipt not found")
+
+    # Verify caller is a participant in the related handoff
+    handoff = await db.get(Handoff, receipt.handoff_id)
+    if not handoff or caller_id not in (handoff.from_agent_id, handoff.to_agent_id):
+        raise HTTPException(status_code=403, detail="Not a participant in this handoff")
+
     return _receipt_to_response(receipt)
 
 

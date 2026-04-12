@@ -22,12 +22,23 @@ class BodyLimitMiddleware(BaseHTTPMiddleware):
         self.max_body_bytes = max_body_bytes
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        # Check Content-Length header first (fast reject)
+        # Check Content-Length header first (fast reject for declared sizes)
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > self.max_body_bytes:
             return JSONResponse(
                 status_code=413,
                 content={"detail": f"Request body too large. Maximum: {self.max_body_bytes} bytes"},
             )
+
+        # For requests without Content-Length (e.g., chunked transfer encoding),
+        # read the body and enforce the limit. This prevents memory exhaustion
+        # from unbounded chunked requests.
+        if request.method in ("POST", "PUT", "PATCH") and not content_length:
+            body = await request.body()
+            if len(body) > self.max_body_bytes:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": f"Request body too large. Maximum: {self.max_body_bytes} bytes"},
+                )
 
         return await call_next(request)

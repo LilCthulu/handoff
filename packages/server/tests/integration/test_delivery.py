@@ -130,7 +130,7 @@ class TestDeliveryReceipts:
         }, headers=receiver["headers"])
         receipt = resp.json()
 
-        # Verify
-        resp = await client.post(f"/api/v1/delivery/{receipt['id']}/verify")
+        # Verify (requires auth now)
+        resp = await client.post(f"/api/v1/delivery/{receipt['id']}/verify", headers=receiver["headers"])
         assert resp.status_code == 200
         assert resp.json()["delivery_verified"] is True
