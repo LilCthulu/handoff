@@ -45,10 +45,13 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Production server with access logging and proxy header support
-CMD ["uvicorn", "app.main:app", \
-     "--host", "0.0.0.0", \
-     "--port", "8000", \
-     "--proxy-headers", \
-     "--forwarded-allow-ips", "*", \
-     "--access-log"]
+# Production server with access logging and proxy header support.
+# FORWARDED_ALLOW_IPS defaults to the Docker bridge network.
+# Set to "*" only when behind a trusted reverse proxy (e.g. nginx).
+ENV FORWARDED_ALLOW_IPS="172.17.0.0/16"
+CMD uvicorn app.main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --proxy-headers \
+    --forwarded-allow-ips "${FORWARDED_ALLOW_IPS}" \
+    --access-log
