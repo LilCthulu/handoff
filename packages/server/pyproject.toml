@@ -16,7 +16,7 @@ dependencies = [
     "PyNaCl>=1.5.0",
     "redis[hiredis]>=5.0.0",
     "httpx>=0.26.0",
-    "structlog>=24.1.0",
+    "structlog>=25.5.0",
 ]
 
 [project.optional-dependencies]
