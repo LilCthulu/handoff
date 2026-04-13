@@ -97,7 +97,23 @@ app.include_router(ws_router)
 _loaded_extensions = load_extensions(app)
 
 # --- Middleware ---
+# Starlette add_middleware prepends: last added = outermost.
+# Execution order: CORS -> BodyLimit -> Auth -> CSRF -> RateLimit -> Route handler
+# CORS is outermost so ALL responses (including 429, 401, etc.) get CORS headers.
+# Auth runs before RateLimit so request.state.agent_id is set for per-agent limiting.
 
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.auth import AuthMiddleware
+from app.middleware.body_limit import BodyLimitMiddleware
+from app.middleware.csrf import CSRFMiddleware
+
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(CSRFMiddleware)
+app.add_middleware(AuthMiddleware)
+app.add_middleware(BodyLimitMiddleware, max_body_bytes=2 * 1024 * 1024)  # 2 MB
+
+# CORS added last = outermost. Every response passes through CORS, including
+# error responses from inner middleware (429 rate limit, 401 auth, etc.).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS.split(","),
@@ -105,23 +121,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"],
 )
-
-# Starlette add_middleware prepends: last added = outermost.
-# Execution order: Auth (outermost) -> RateLimit (inner) -> Route handler
-# Auth runs first so request.state.agent_id is set for per-agent rate limiting.
-# Unauthenticated requests (public paths) still get per-IP rate limiting.
-
-from app.middleware.rate_limit import RateLimitMiddleware
-from app.middleware.auth import AuthMiddleware
-from app.middleware.body_limit import BodyLimitMiddleware
-from app.middleware.csrf import CSRFMiddleware
-
-# Starlette add_middleware prepends: last added = outermost.
-# Execution order: BodyLimit -> Auth -> CSRF -> RateLimit -> Route handler
-app.add_middleware(RateLimitMiddleware)
-app.add_middleware(CSRFMiddleware)
-app.add_middleware(AuthMiddleware)
-app.add_middleware(BodyLimitMiddleware, max_body_bytes=2 * 1024 * 1024)  # 2 MB
 
 # --- Exception handlers ---
 

@@ -1,0 +1,14 @@
+# Default owners for the entire repo
+* @LilCthulu
+
+# Server core
+packages/server/ @LilCthulu
+
+# SDK
+packages/sdk/ @LilCthulu
+
+# Protocol spec
+protocol/ @LilCthulu
+
+# CI and deployment
+.github/ @LilCthulu
