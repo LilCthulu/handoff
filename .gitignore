@@ -49,6 +49,11 @@ htmlcov/
 postgres_data/
 redis_data/
 
+# Production deployment (lives in private cloud repo)
+Dockerfile.prod
+docker-compose.local-prod.yml
+entrypoint.prod.sh
+
 # TLS certs and temp files
 nginx/*.crt
 nginx/*.key

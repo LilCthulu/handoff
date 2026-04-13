@@ -5,7 +5,7 @@
     <a href="https://github.com/LilCthulu/handoff/actions"><img src="https://github.com/LilCthulu/handoff/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
     <img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python 3.11+">
-    <img src="https://img.shields.io/badge/tests-253%20passing-brightgreen.svg" alt="253 tests">
+    <img src="https://img.shields.io/badge/tests-461%20passing-brightgreen.svg" alt="461 tests">
     <a href="https://github.com/LilCthulu/handoff/issues"><img src="https://img.shields.io/github/issues/LilCthulu/handoff.svg" alt="Issues"></a>
     <a href="https://github.com/LilCthulu/handoff/stargazers"><img src="https://img.shields.io/github/stars/LilCthulu/handoff.svg?style=social" alt="Stars"></a>
   </p>
@@ -524,15 +524,18 @@ handoff/
 │   ├── spec.md                 # Formal protocol specification
 │   ├── schemas/                # JSON Schema definitions
 │   └── examples/               # Example message flows
+├── nginx/                      # Production nginx configuration
 ├── docker-compose.yml          # PostgreSQL + Redis + server
 ├── .env.example                # Environment variable template
+├── SECURITY.md                 # Vulnerability reporting policy
+├── CONTRIBUTING.md             # Contribution guidelines
 └── LICENSE                     # MIT
 ```
 
 ## Running Tests
 
 ```bash
-# Server tests (253 tests — unit, integration, security)
+# Server tests
 cd packages/server
 pip install -e ".[dev]"
 pytest tests/ -v
@@ -568,7 +571,7 @@ pytest tests/ -v
 
 ## Contributing
 
-We welcome contributions. Please open an issue before submitting large PRs so we can discuss the approach.
+We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. Please open an issue before submitting large PRs so we can discuss the approach.
 
 ## License
 

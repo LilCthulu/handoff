@@ -47,6 +47,13 @@ PUBLIC_PREFIXES: tuple[str, ...] = (
     "/api/v1/attestations/agent/",
     "/api/v1/attestations/summary/",
     "/ws/",
+    # Cloud extension routes use session-cookie auth, not JWT.
+    # They must bypass the protocol's JWT middleware to reach
+    # the cloud extension's own authentication layer.
+    "/api/v1/accounts/",
+    "/api/v1/dashboard/",
+    "/api/v1/billing/",
+    "/api/v1/oauth/",
 )
 
 
